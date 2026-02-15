@@ -8,6 +8,11 @@ import { sessionsCommand } from './commands/sessions.ts';
 import { gcCli } from './commands/gc.ts';
 import { sweepCli } from './commands/sweep.ts';
 import { ingestCli } from './commands/ingest.ts';
+import { queryCli } from './commands/query.ts';
+import { summaryCli } from './commands/analytics-summary.ts';
+import { toolsCli } from './commands/analytics-tools.ts';
+import { sessionsAnalyticsCli } from './commands/analytics-sessions.ts';
+import { patternsCli } from './commands/analytics-patterns.ts';
 import type { EventType } from './types.ts';
 
 const VALID_EVENTS: EventType[] = [
@@ -189,6 +194,77 @@ program
   .action((options) => {
     const db = openDb();
     ingestCli(db, options);
+    db.close();
+  });
+
+program
+  .command('query')
+  .description(
+    'Execute a read-only SQL query against the sap database.\n\n' +
+    'Returns results as a JSON array of row objects.\n' +
+    'Write statements (INSERT, UPDATE, DELETE, etc.) are rejected.\n\n' +
+    'Available tables: sessions, events, workspaces, turns, tool_calls.\n\n' +
+    'Example:\n' +
+    '  sap query "SELECT tool_name, count(*) as n FROM tool_calls GROUP BY tool_name ORDER BY n DESC"\n' +
+    '  sap query "SELECT workspace, sum(output_tokens) FROM turns t JOIN sessions s ON t.session_id = s.session_id GROUP BY workspace"'
+  )
+  .argument('<sql>', 'SQL query to execute')
+  .action((sql) => {
+    const db = openDb();
+    queryCli(db, sql, { json: true });
+    db.close();
+  });
+
+const analytics = program
+  .command('analytics')
+  .description('Analyze Claude Code usage patterns.');
+
+analytics
+  .command('summary')
+  .description('High-level usage summary over a time window.')
+  .option('--since <duration>', 'Time window (e.g. "7d", "30d")', '7d')
+  .option('--workspace <name>', 'Filter by workspace')
+  .option('--json', 'Output as JSON')
+  .action((options) => {
+    const db = openDb();
+    summaryCli(db, options);
+    db.close();
+  });
+
+analytics
+  .command('tools')
+  .description('Per-tool usage breakdown with sequences.')
+  .option('--since <duration>', 'Time window (e.g. "7d", "30d")', '7d')
+  .option('--workspace <name>', 'Filter by workspace')
+  .option('--json', 'Output as JSON')
+  .action((options) => {
+    const db = openDb();
+    toolsCli(db, options);
+    db.close();
+  });
+
+analytics
+  .command('sessions')
+  .description('Per-session metrics for comparing efficiency.')
+  .option('--since <duration>', 'Time window (e.g. "7d", "30d")', '7d')
+  .option('--workspace <name>', 'Filter by workspace')
+  .option('--limit <n>', 'Number of sessions', '20')
+  .option('--json', 'Output as JSON')
+  .action((options) => {
+    const db = openDb();
+    sessionsAnalyticsCli(db, options);
+    db.close();
+  });
+
+analytics
+  .command('patterns')
+  .description('Detect workflow patterns and anti-patterns.')
+  .option('--since <duration>', 'Time window (e.g. "7d", "30d")', '7d')
+  .option('--workspace <name>', 'Filter by workspace')
+  .option('--json', 'Output as JSON')
+  .action((options) => {
+    const db = openDb();
+    patternsCli(db, options);
     db.close();
   });
 
