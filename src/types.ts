@@ -46,10 +46,39 @@ export interface Session {
   last_event_at: number;
   last_tool: string | null;
   last_tool_detail: string | null;
+  ingested_at: number | null;
 }
 
 export interface SessionStatus extends Session {
   stale: boolean;
+}
+
+export interface Turn {
+  id: number;
+  session_id: string;
+  turn_number: number;
+  prompt_text: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_write_tokens: number | null;
+  model: string | null;
+  tool_call_count: number;
+  started_at: number | null;
+  ended_at: number | null;
+  duration_ms: number | null;
+}
+
+export interface ToolCall {
+  id: number;
+  session_id: string;
+  turn_id: number;
+  tool_use_id: string | null;
+  tool_name: string;
+  tool_input_summary: string | null;
+  success: number | null;
+  error_message: string | null;
+  created_at: number;
 }
 
 export interface WorkspaceEntry {

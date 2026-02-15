@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { homedir } from 'os';
-import type { Session, SessionState, WorkspaceEntry } from './types.ts';
+import type { Session, SessionState, WorkspaceEntry, Turn, ToolCall } from './types.ts';
 
 export const DEFAULT_DB_PATH = process.env.SAP_DB_PATH || join(homedir(), '.sap', 'sap.db');
 
@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   ended_at         INTEGER,
   last_event_at    INTEGER NOT NULL,
   last_tool        TEXT,
-  last_tool_detail TEXT
+  last_tool_detail TEXT,
+  ingested_at      INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS events (
@@ -36,10 +37,43 @@ CREATE TABLE IF NOT EXISTS events (
   created_at  INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS turns (
+  id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id               TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  turn_number              INTEGER NOT NULL,
+  prompt_text              TEXT,
+  input_tokens             INTEGER,
+  output_tokens            INTEGER,
+  cache_read_tokens        INTEGER,
+  cache_write_tokens       INTEGER,
+  model                    TEXT,
+  tool_call_count          INTEGER NOT NULL DEFAULT 0,
+  started_at               INTEGER,
+  ended_at                 INTEGER,
+  duration_ms              INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS tool_calls (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id          TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+  turn_id             INTEGER NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+  tool_use_id         TEXT,
+  tool_name           TEXT NOT NULL,
+  tool_input_summary  TEXT,
+  success             INTEGER,
+  error_message       TEXT,
+  created_at          INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_workspace ON sessions(workspace);
 CREATE INDEX IF NOT EXISTS idx_sessions_state ON sessions(state);
 CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
 CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
+CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id);
+CREATE INDEX IF NOT EXISTS idx_turns_started ON turns(started_at);
+CREATE INDEX IF NOT EXISTS idx_tool_calls_session ON tool_calls(session_id);
+CREATE INDEX IF NOT EXISTS idx_tool_calls_turn ON tool_calls(turn_id);
+CREATE INDEX IF NOT EXISTS idx_tool_calls_name ON tool_calls(tool_name);
 `;
 
 export function openDb(path: string = DEFAULT_DB_PATH): Database.Database {
@@ -51,6 +85,14 @@ export function openDb(path: string = DEFAULT_DB_PATH): Database.Database {
   db.pragma('busy_timeout = 3000');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
+
+  // Migration for existing databases: add ingested_at column if missing
+  try {
+    db.exec('ALTER TABLE sessions ADD COLUMN ingested_at INTEGER');
+  } catch {
+    // Column already exists — ignore
+  }
+
   return db;
 }
 
@@ -221,4 +263,65 @@ export function deleteStaleSessions(db: Database.Database, olderThan: number): n
   `).run(cutoff, cutoff);
 
   return result.changes;
+}
+
+// --- Turn operations ---
+
+interface InsertTurnParams {
+  session_id: string;
+  turn_number: number;
+  prompt_text: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_write_tokens: number | null;
+  model: string | null;
+  tool_call_count: number;
+  started_at: number | null;
+  ended_at: number | null;
+  duration_ms: number | null;
+}
+
+export function insertTurn(db: Database.Database, params: InsertTurnParams): number {
+  const result = db.prepare(`
+    INSERT INTO turns (session_id, turn_number, prompt_text, input_tokens, output_tokens,
+      cache_read_tokens, cache_write_tokens, model, tool_call_count, started_at, ended_at, duration_ms)
+    VALUES (@session_id, @turn_number, @prompt_text, @input_tokens, @output_tokens,
+      @cache_read_tokens, @cache_write_tokens, @model, @tool_call_count, @started_at, @ended_at, @duration_ms)
+  `).run(params);
+  return Number(result.lastInsertRowid);
+}
+
+export function getSessionTurns(db: Database.Database, sessionId: string): Turn[] {
+  return db.prepare(
+    'SELECT * FROM turns WHERE session_id = ? ORDER BY turn_number ASC'
+  ).all(sessionId) as Turn[];
+}
+
+// --- Tool call operations ---
+
+interface InsertToolCallParams {
+  session_id: string;
+  turn_id: number;
+  tool_use_id: string | null;
+  tool_name: string;
+  tool_input_summary: string | null;
+  success: number | null;
+  error_message: string | null;
+  created_at: number;
+}
+
+export function insertToolCall(db: Database.Database, params: InsertToolCallParams): void {
+  db.prepare(`
+    INSERT INTO tool_calls (session_id, turn_id, tool_use_id, tool_name,
+      tool_input_summary, success, error_message, created_at)
+    VALUES (@session_id, @turn_id, @tool_use_id, @tool_name,
+      @tool_input_summary, @success, @error_message, @created_at)
+  `).run(params);
+}
+
+export function getTurnToolCalls(db: Database.Database, turnId: number): ToolCall[] {
+  return db.prepare(
+    'SELECT * FROM tool_calls WHERE turn_id = ? ORDER BY created_at ASC'
+  ).all(turnId) as ToolCall[];
 }

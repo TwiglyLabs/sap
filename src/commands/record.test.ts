@@ -166,6 +166,26 @@ describe('recordEvent', () => {
       recordEvent(db, 'user-prompt', payload());
       expect(getSession(db, 'sess-1')!.state).toBe('active');
     });
+
+    it('stores prompt text in event data', () => {
+      recordEvent(db, 'session-start', payload({ source: 'startup' }));
+      recordEvent(db, 'user-prompt', payload({ prompt: 'fix the login bug' }));
+
+      const events = getSessionEvents(db, 'sess-1');
+      const promptEvent = events.find(e => e.event_type === 'user-prompt');
+      expect(promptEvent).toBeDefined();
+      const data = JSON.parse(promptEvent!.data!);
+      expect(data.prompt).toBe('fix the login bug');
+    });
+
+    it('handles user-prompt without prompt text', () => {
+      recordEvent(db, 'session-start', payload({ source: 'startup' }));
+      recordEvent(db, 'user-prompt', payload());
+
+      const events = getSessionEvents(db, 'sess-1');
+      const promptEvent = events.find(e => e.event_type === 'user-prompt');
+      expect(promptEvent).toBeDefined();
+    });
   });
 
   describe('tool-use', () => {

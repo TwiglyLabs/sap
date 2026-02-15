@@ -104,10 +104,19 @@ function handleStateChange(
   if (session.state === 'stopped') return;
 
   updateSessionState(db, data.session_id, newState, now);
+
+  // Build event data from available payload fields
+  let eventData: string | null = null;
+  if (data.reason) {
+    eventData = JSON.stringify({ reason: data.reason });
+  } else if (data.prompt) {
+    eventData = JSON.stringify({ prompt: data.prompt });
+  }
+
   insertEvent(db, {
     session_id: data.session_id,
     event_type: eventType,
-    data: data.reason ? JSON.stringify({ reason: data.reason }) : null,
+    data: eventData,
     created_at: now,
   });
 }

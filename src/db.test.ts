@@ -14,6 +14,10 @@ import {
   getLatestSession,
   getSessionHistory,
   deleteStaleSessions,
+  insertTurn,
+  getSessionTurns,
+  insertToolCall,
+  getTurnToolCalls,
 } from './db.ts';
 
 describe('openDb', () => {
@@ -348,5 +352,144 @@ describe('query helpers', () => {
     const deleted = deleteStaleSessions(db, 50000);
     expect(deleted).toBe(1);
     expect(getSession(db, 's-orphan')).toBeNull();
+  });
+});
+
+describe('analytics schema', () => {
+  it('sessions table has ingested_at column', () => {
+    const db = openDb(':memory:');
+    const cols = db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
+    const names = cols.map(c => c.name);
+    expect(names).toContain('ingested_at');
+    db.close();
+  });
+
+  it('creates turns table with expected columns', () => {
+    const db = openDb(':memory:');
+    const cols = db.prepare("PRAGMA table_info(turns)").all() as { name: string }[];
+    const names = cols.map(c => c.name);
+    expect(names).toEqual(expect.arrayContaining([
+      'id', 'session_id', 'turn_number', 'prompt_text',
+      'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens',
+      'model', 'tool_call_count', 'started_at', 'ended_at', 'duration_ms',
+    ]));
+    db.close();
+  });
+
+  it('creates tool_calls table with expected columns', () => {
+    const db = openDb(':memory:');
+    const cols = db.prepare("PRAGMA table_info(tool_calls)").all() as { name: string }[];
+    const names = cols.map(c => c.name);
+    expect(names).toEqual(expect.arrayContaining([
+      'id', 'session_id', 'turn_id', 'tool_use_id',
+      'tool_name', 'tool_input_summary', 'success', 'error_message', 'created_at',
+    ]));
+    db.close();
+  });
+});
+
+describe('turns operations', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = openDb(':memory:');
+    insertSession(db, {
+      session_id: 'sess-1',
+      workspace: 'repo:main',
+      cwd: '/r',
+      transcript_path: null,
+      started_at: 1000,
+    });
+  });
+
+  it('inserts and retrieves turns for a session', () => {
+    insertTurn(db, {
+      session_id: 'sess-1',
+      turn_number: 1,
+      prompt_text: 'fix the bug',
+      input_tokens: 5000,
+      output_tokens: 1200,
+      cache_read_tokens: 3000,
+      cache_write_tokens: 500,
+      model: 'claude-sonnet-4-5-20250929',
+      tool_call_count: 3,
+      started_at: 1000,
+      ended_at: 1500,
+      duration_ms: 500,
+    });
+
+    const turns = getSessionTurns(db, 'sess-1');
+    expect(turns).toHaveLength(1);
+    expect(turns[0].prompt_text).toBe('fix the bug');
+    expect(turns[0].input_tokens).toBe(5000);
+  });
+
+  it('deletes turns when session is deleted (cascade)', () => {
+    insertTurn(db, {
+      session_id: 'sess-1',
+      turn_number: 1,
+      prompt_text: 'hello',
+      input_tokens: null,
+      output_tokens: null,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      model: null,
+      tool_call_count: 0,
+      started_at: 1000,
+      ended_at: 1100,
+      duration_ms: 100,
+    });
+
+    db.prepare('DELETE FROM sessions WHERE session_id = ?').run('sess-1');
+    const turns = getSessionTurns(db, 'sess-1');
+    expect(turns).toHaveLength(0);
+  });
+});
+
+describe('tool_calls operations', () => {
+  let db: Database.Database;
+  let turnId: number;
+
+  beforeEach(() => {
+    db = openDb(':memory:');
+    insertSession(db, {
+      session_id: 'sess-1',
+      workspace: 'repo:main',
+      cwd: '/r',
+      transcript_path: null,
+      started_at: 1000,
+    });
+    turnId = insertTurn(db, {
+      session_id: 'sess-1',
+      turn_number: 1,
+      prompt_text: 'test',
+      input_tokens: null,
+      output_tokens: null,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      model: null,
+      tool_call_count: 1,
+      started_at: 1000,
+      ended_at: 1100,
+      duration_ms: 100,
+    });
+  });
+
+  it('inserts and retrieves tool calls for a turn', () => {
+    insertToolCall(db, {
+      session_id: 'sess-1',
+      turn_id: turnId,
+      tool_use_id: 'toolu_123',
+      tool_name: 'Edit',
+      tool_input_summary: 'app.ts',
+      success: 1,
+      error_message: null,
+      created_at: 1050,
+    });
+
+    const calls = getTurnToolCalls(db, turnId);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].tool_name).toBe('Edit');
+    expect(calls[0].success).toBe(1);
   });
 });
