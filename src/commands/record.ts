@@ -1,16 +1,24 @@
 import type Database from 'better-sqlite3';
 import type { EventType, HookPayload, SessionStartSource, SessionState } from '../types.ts';
-import { insertSession, getSession, updateSessionState, insertEvent } from '../db.ts';
+import { upsertSession, insertSession, getSession, updateSessionState, insertEvent } from '../db.ts';
 import { resolveWorkspace } from '../workspace.ts';
 import { extractToolDetail } from '../tool-detail.ts';
 
 export function recordEvent(db: Database.Database, eventType: EventType, data: HookPayload): void {
   const now = Date.now();
 
+  if (eventType === 'session-start') {
+    // Resolve workspace outside transaction — shells out to git (up to 10s)
+    const workspace = resolveWorkspace(db, data.cwd, true);
+    const run = db.transaction(() => {
+      handleSessionStart(db, data, now, workspace);
+    });
+    run();
+    return;
+  }
+
   const run = db.transaction(() => {
     switch (eventType) {
-      case 'session-start':
-        return handleSessionStart(db, data, now);
       case 'session-end':
         return handleStateChange(db, data, eventType, 'stopped', now);
       case 'turn-complete':
@@ -27,15 +35,13 @@ export function recordEvent(db: Database.Database, eventType: EventType, data: H
   run();
 }
 
-function handleSessionStart(db: Database.Database, data: HookPayload, now: number): void {
+function handleSessionStart(db: Database.Database, data: HookPayload, now: number, workspace: string): void {
   const source: SessionStartSource = data.source ?? 'startup';
-  // session-start always force-resolves workspace (catches branch changes)
-  const workspace = resolveWorkspace(db, data.cwd, true);
 
   switch (source) {
     case 'startup':
     case 'clear': {
-      insertSession(db, {
+      upsertSession(db, {
         session_id: data.session_id,
         workspace,
         cwd: data.cwd,

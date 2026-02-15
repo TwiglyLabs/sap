@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import {
   openDb,
   insertSession,
+  upsertSession,
   getSession,
   updateSessionState,
   getActiveSessions,
@@ -25,6 +26,13 @@ describe('openDb', () => {
     expect(names).toContain('sessions');
     expect(names).toContain('events');
     expect(names).toContain('workspaces');
+    db.close();
+  });
+
+  it('sets busy_timeout pragma', () => {
+    const db = openDb(':memory:');
+    const result = db.prepare('PRAGMA busy_timeout').get() as { timeout: number };
+    expect(result.timeout).toBe(3000);
     db.close();
   });
 
@@ -62,6 +70,38 @@ describe('session operations', () => {
     expect(session!.state).toBe('active');
     expect(session!.started_at).toBe(1000);
     expect(session!.last_event_at).toBe(1000);
+  });
+
+  it('upserts session on duplicate session_id', () => {
+    insertSession(db, {
+      session_id: 'sess-1',
+      workspace: 'myrepo:main',
+      cwd: '/home/user/myrepo',
+      transcript_path: null,
+      started_at: 1000,
+    });
+    updateSessionState(db, 'sess-1', 'stopped', 2000, { tool: 'Edit', detail: 'foo.ts' });
+
+    const stopped = getSession(db, 'sess-1');
+    expect(stopped!.state).toBe('stopped');
+    expect(stopped!.ended_at).toBe(2000);
+
+    // Upsert should reset to active, clear ended_at and tool info
+    upsertSession(db, {
+      session_id: 'sess-1',
+      workspace: 'myrepo:dev',
+      cwd: '/home/user/myrepo',
+      transcript_path: '/new/path',
+      started_at: 3000,
+    });
+
+    const restarted = getSession(db, 'sess-1');
+    expect(restarted!.state).toBe('active');
+    expect(restarted!.workspace).toBe('myrepo:dev');
+    expect(restarted!.started_at).toBe(3000);
+    expect(restarted!.ended_at).toBeNull();
+    expect(restarted!.last_tool).toBeNull();
+    expect(restarted!.last_tool_detail).toBeNull();
   });
 
   it('updates session state', () => {

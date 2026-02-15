@@ -79,6 +79,32 @@ describe('recordEvent', () => {
     });
   });
 
+  describe('duplicate session_id', () => {
+    it('handles duplicate session_id on startup (upsert)', () => {
+      recordEvent(db, 'session-start', payload({ source: 'startup' }));
+      recordEvent(db, 'tool-use', payload({ tool_name: 'Edit', tool_input: { file_path: '/a/b.ts' } }));
+
+      // Second startup with same session_id should not crash
+      recordEvent(db, 'session-start', payload({ source: 'startup' }));
+
+      const session = getSession(db, 'sess-1');
+      expect(session!.state).toBe('active');
+      expect(session!.last_tool).toBeNull();
+    });
+
+    it('handles duplicate session_id on clear (upsert)', () => {
+      recordEvent(db, 'session-start', payload({ source: 'startup' }));
+      recordEvent(db, 'session-end', payload({ reason: 'done' }));
+
+      // Clear with same session_id should reset to active
+      recordEvent(db, 'session-start', payload({ source: 'clear' }));
+
+      const session = getSession(db, 'sess-1');
+      expect(session!.state).toBe('active');
+      expect(session!.ended_at).toBeNull();
+    });
+  });
+
   describe('session-end', () => {
     it('stops the session and sets ended_at', () => {
       recordEvent(db, 'session-start', payload({ source: 'startup' }));
@@ -178,6 +204,46 @@ describe('recordEvent', () => {
 
       const session = getSession(db, 'sess-1');
       expect(session!.last_tool).toBe('unknown');
+    });
+  });
+
+  describe('out-of-order events', () => {
+    it('silently ignores tool-use for unknown session_id', () => {
+      recordEvent(db, 'tool-use', payload({ session_id: 'ghost', tool_name: 'Edit' }));
+      expect(getSession(db, 'ghost')).toBeNull();
+    });
+
+    it('silently ignores turn-complete for unknown session_id', () => {
+      recordEvent(db, 'turn-complete', payload({ session_id: 'ghost' }));
+      expect(getSession(db, 'ghost')).toBeNull();
+    });
+
+    it('silently ignores attention for unknown session_id', () => {
+      recordEvent(db, 'attention-permission', payload({ session_id: 'ghost' }));
+      expect(getSession(db, 'ghost')).toBeNull();
+    });
+
+    it('ignores duplicate session-end', () => {
+      recordEvent(db, 'session-start', payload({ source: 'startup' }));
+      recordEvent(db, 'session-end', payload({ reason: 'done' }));
+      const first = getSession(db, 'sess-1');
+
+      recordEvent(db, 'session-end', payload({ reason: 'again' }));
+      const second = getSession(db, 'sess-1');
+      expect(second!.ended_at).toBe(first!.ended_at);
+    });
+
+    it('ignores events after session-end', () => {
+      recordEvent(db, 'session-start', payload({ source: 'startup' }));
+      recordEvent(db, 'session-end', payload({ reason: 'done' }));
+
+      recordEvent(db, 'tool-use', payload({ tool_name: 'Edit' }));
+      recordEvent(db, 'turn-complete', payload());
+      recordEvent(db, 'attention-permission', payload());
+      recordEvent(db, 'user-prompt', payload());
+
+      const session = getSession(db, 'sess-1');
+      expect(session!.state).toBe('stopped');
     });
   });
 });

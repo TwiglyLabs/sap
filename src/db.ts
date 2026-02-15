@@ -4,7 +4,7 @@ import { dirname, join } from 'path';
 import { homedir } from 'os';
 import type { Session, SessionState, WorkspaceEntry } from './types.ts';
 
-export const DEFAULT_DB_PATH = join(homedir(), '.sap', 'sap.db');
+export const DEFAULT_DB_PATH = process.env.SAP_DB_PATH || join(homedir(), '.sap', 'sap.db');
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS workspaces (
@@ -48,6 +48,7 @@ export function openDb(path: string = DEFAULT_DB_PATH): Database.Database {
   }
   const db = new Database(path);
   db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 3000');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
   return db;
@@ -67,6 +68,23 @@ export function insertSession(db: Database.Database, params: InsertSessionParams
   db.prepare(`
     INSERT INTO sessions (session_id, workspace, cwd, transcript_path, state, started_at, last_event_at)
     VALUES (@session_id, @workspace, @cwd, @transcript_path, 'active', @started_at, @started_at)
+  `).run(params);
+}
+
+export function upsertSession(db: Database.Database, params: InsertSessionParams): void {
+  db.prepare(`
+    INSERT INTO sessions (session_id, workspace, cwd, transcript_path, state, started_at, last_event_at)
+    VALUES (@session_id, @workspace, @cwd, @transcript_path, 'active', @started_at, @started_at)
+    ON CONFLICT(session_id) DO UPDATE SET
+      workspace = excluded.workspace,
+      cwd = excluded.cwd,
+      transcript_path = excluded.transcript_path,
+      state = 'active',
+      started_at = excluded.started_at,
+      last_event_at = excluded.started_at,
+      ended_at = NULL,
+      last_tool = NULL,
+      last_tool_detail = NULL
   `).run(params);
 }
 
@@ -178,6 +196,18 @@ export function getSessionHistory(db: Database.Database, params: SessionHistoryP
   return db.prepare(
     'SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?'
   ).all(params.limit) as Session[];
+}
+
+export function markStaleSessions(db: Database.Database, thresholdMs: number): number {
+  const cutoff = Date.now() - thresholdMs;
+
+  const result = db.prepare(`
+    UPDATE sessions
+    SET state = 'stopped', ended_at = last_event_at
+    WHERE state != 'stopped' AND last_event_at < ?
+  `).run(cutoff);
+
+  return result.changes;
 }
 
 export function deleteStaleSessions(db: Database.Database, olderThan: number): number {
