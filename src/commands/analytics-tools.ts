@@ -9,6 +9,7 @@ export interface ToolsResult {
     success_rate: number;
     error_count: number;
     top_errors: string[];
+    workspaces: { workspace: string; count: number }[];
   }[];
   sequences: {
     sequence: string[];
@@ -30,17 +31,24 @@ export function toolsQuery(db: Database.Database, filters: FilterOptions): Tools
     GROUP BY tc.tool_name ORDER BY count DESC
   `).all(...params) as { tool: string; count: number; success_rate: number; error_count: number }[];
 
-  // Get top errors per tool
-  const toolsWithErrors = tools.map(t => {
+  // Get top errors and workspace breakdown per tool
+  const toolsWithDetails = tools.map(t => {
     const errors = db.prepare(`
       SELECT DISTINCT tc.error_message
       ${joinBase} ${clause ? clause + ' AND' : 'WHERE'} tc.tool_name = ? AND tc.error_message IS NOT NULL
       LIMIT 5
     `).all(...params, t.tool) as { error_message: string }[];
 
+    const workspaces = db.prepare(`
+      SELECT s.workspace, count(*) as count
+      ${joinBase} ${clause ? clause + ' AND' : 'WHERE'} tc.tool_name = ?
+      GROUP BY s.workspace ORDER BY count DESC LIMIT 5
+    `).all(...params, t.tool) as { workspace: string; count: number }[];
+
     return {
       ...t,
       top_errors: errors.map(e => e.error_message),
+      workspaces,
     };
   });
 
@@ -61,7 +69,7 @@ export function toolsQuery(db: Database.Database, filters: FilterOptions): Tools
   const sequences = db.prepare(sequenceQuery).all(...params) as { first: string; second: string; count: number }[];
 
   return {
-    tools: toolsWithErrors,
+    tools: toolsWithDetails,
     sequences: sequences.map(s => ({ sequence: [s.first, s.second], count: s.count })),
   };
 }

@@ -3,9 +3,14 @@ import chalk from 'chalk';
 import { buildWhereClause, type FilterOptions, type AnalyticsCliOptions, parseAnalyticsOptions } from './analytics-common.ts';
 
 export interface SummaryResult {
+  period: {
+    since: string | null;
+    until: string;
+  };
   sessions: {
     total: number;
     avg_turns: number;
+    avg_duration_min: number;
     by_workspace: { workspace: string; count: number }[];
   };
   tokens: {
@@ -28,12 +33,18 @@ export function summaryQuery(db: Database.Database, filters: FilterOptions): Sum
   // Build a join base: turns joined with sessions for workspace filter
   const joinBase = 'FROM turns t JOIN sessions s ON t.session_id = s.session_id';
 
-  // Session count & avg turns
+  // Session count, avg turns, and avg duration
   const sessionStats = db.prepare(`
     SELECT count(DISTINCT t.session_id) as total_sessions,
-           count(*) as total_turns
-    ${joinBase} ${clause}
-  `).get(...params) as { total_sessions: number; total_turns: number };
+           count(*) as total_turns,
+           coalesce(avg(session_dur.duration_ms), 0) as avg_duration_ms
+    ${joinBase}
+    LEFT JOIN (
+      SELECT session_id, sum(duration_ms) as duration_ms
+      FROM turns GROUP BY session_id
+    ) session_dur ON session_dur.session_id = t.session_id
+    ${clause}
+  `).get(...params) as { total_sessions: number; total_turns: number; avg_duration_ms: number };
 
   // Token totals
   const tokenStats = db.prepare(`
@@ -70,10 +81,19 @@ export function summaryQuery(db: Database.Database, filters: FilterOptions): Sum
   const totalSessions = sessionStats.total_sessions || 1;
   const totalTurns = sessionStats.total_turns || 1;
 
+  // Period metadata
+  const now = new Date();
+  const since = filters.sinceMs ? new Date(now.getTime() - filters.sinceMs).toISOString() : null;
+
   return {
+    period: {
+      since,
+      until: now.toISOString(),
+    },
     sessions: {
       total: sessionStats.total_sessions,
       avg_turns: Math.round(sessionStats.total_turns / totalSessions * 10) / 10,
+      avg_duration_min: Math.round(sessionStats.avg_duration_ms / 60000 * 10) / 10,
       by_workspace: byWorkspace,
     },
     tokens: {
@@ -107,7 +127,7 @@ export function summaryCli(db: Database.Database, options: AnalyticsCliOptions):
   }
 
   console.log(chalk.bold('\nUsage Summary\n'));
-  console.log(`  Sessions: ${result.sessions.total}  (avg ${result.sessions.avg_turns} turns/session)`);
+  console.log(`  Sessions: ${result.sessions.total}  (avg ${result.sessions.avg_turns} turns, ${result.sessions.avg_duration_min} min)`);
   console.log(`  Tokens:   ${result.tokens.total_input.toLocaleString()} in / ${result.tokens.total_output.toLocaleString()} out`);
   console.log(`  Cache:    ${result.tokens.total_cache_read.toLocaleString()} read / ${result.tokens.total_cache_write.toLocaleString()} write`);
   console.log(`  Tools:    ${result.tools.total_calls} calls\n`);

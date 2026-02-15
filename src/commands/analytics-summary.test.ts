@@ -37,9 +37,20 @@ describe('summaryQuery', () => {
     seedData(db);
   });
 
-  it('returns session count', () => {
+  it('returns session count and avg duration', () => {
     const result = summaryQuery(db, {});
     expect(result.sessions.total).toBe(2);
+    expect(result.sessions.avg_duration_min).toBeGreaterThan(0);
+  });
+
+  it('returns period metadata', () => {
+    const result = summaryQuery(db, {});
+    expect(result.period).toBeDefined();
+    expect(result.period.until).toBeDefined();
+    expect(result.period.since).toBeNull();
+
+    const filtered = summaryQuery(db, { sinceMs: 7 * 86400 * 1000 });
+    expect(filtered.period.since).toBeTruthy();
   });
 
   it('returns token totals', () => {

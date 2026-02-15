@@ -19,13 +19,15 @@ describe('toolsQuery', () => {
     insertToolCall(db, { session_id: 's1', turn_id: t1, tool_use_id: 'tu3', tool_name: 'Edit', tool_input_summary: 'b.ts', success: 0, error_message: 'old_string not found', created_at: Date.now() - 3560000 });
   });
 
-  it('returns per-tool breakdown', () => {
+  it('returns per-tool breakdown with workspaces', () => {
     const result = toolsQuery(db, {});
     expect(result.tools.length).toBeGreaterThanOrEqual(2);
     const edit = result.tools.find(t => t.tool === 'Edit');
     expect(edit?.count).toBe(2);
     expect(edit?.success_rate).toBe(0.5);
     expect(edit?.error_count).toBe(1);
+    expect(edit?.workspaces).toBeDefined();
+    expect(edit?.workspaces[0].workspace).toBe('repo:main');
   });
 
   it('returns tool sequences', () => {

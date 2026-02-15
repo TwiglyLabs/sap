@@ -6,11 +6,13 @@ export interface QueryResult {
   error?: string;
 }
 
-const WRITE_PATTERN = /^\s*(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|REPLACE|TRUNCATE)\b/i;
+const SAFE_PATTERN = /^\s*(SELECT|WITH|EXPLAIN|PRAGMA\s+table_info|PRAGMA\s+index_list)\b/i;
 
 export function executeQuery(db: Database.Database, sql: string): QueryResult {
-  if (WRITE_PATTERN.test(sql)) {
-    return { rows: [], error: 'Read-only: write statements are not allowed' };
+  // Strip SQL comments before checking
+  const stripped = sql.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--[^\n]*/g, '').trim();
+  if (!SAFE_PATTERN.test(stripped)) {
+    return { rows: [], error: 'Read-only: only SELECT, WITH, and EXPLAIN queries are allowed' };
   }
 
   try {

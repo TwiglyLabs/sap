@@ -44,6 +44,27 @@ describe('executeQuery', () => {
     expect(result.error).toBeDefined();
   });
 
+  it('rejects write statements hidden behind SQL comments', () => {
+    const result = executeQuery(db, '/* sneaky */ DROP TABLE sessions');
+    expect(result.error).toBeDefined();
+  });
+
+  it('rejects PRAGMA writes', () => {
+    const result = executeQuery(db, 'PRAGMA writable_schema = ON');
+    expect(result.error).toBeDefined();
+  });
+
+  it('rejects ATTACH DATABASE', () => {
+    const result = executeQuery(db, "ATTACH DATABASE ':memory:' AS tmp");
+    expect(result.error).toBeDefined();
+  });
+
+  it('allows read-only PRAGMA table_info', () => {
+    const result = executeQuery(db, 'PRAGMA table_info(sessions)');
+    expect(result.error).toBeUndefined();
+    expect(result.rows.length).toBeGreaterThan(0);
+  });
+
   it('returns error for invalid SQL', () => {
     const result = executeQuery(db, 'SELECTT * FROM sessions');
     expect(result.error).toBeDefined();

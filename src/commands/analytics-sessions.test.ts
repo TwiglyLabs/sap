@@ -18,13 +18,14 @@ describe('sessionsAnalyticsQuery', () => {
     insertToolCall(db, { session_id: 's1', turn_id: t1, tool_use_id: 'tu2', tool_name: 'Bash', tool_input_summary: 'git commit -m "feat"', success: 1, error_message: null, created_at: Date.now() - 3560000 });
   });
 
-  it('returns per-session metrics', () => {
+  it('returns per-session metrics with duration', () => {
     const result = sessionsAnalyticsQuery(db, {});
     expect(result.sessions).toHaveLength(1);
     expect(result.sessions[0].session_id).toBe('s1');
     expect(result.sessions[0].turns).toBe(1);
     expect(result.sessions[0].input_tokens).toBe(5000);
     expect(result.sessions[0].tool_calls).toBe(2);
+    expect(result.sessions[0].duration_min).toBeGreaterThan(0);
   });
 
   it('detects commit outcome', () => {

@@ -6,6 +6,7 @@ interface SessionAnalytics {
   session_id: string;
   workspace: string;
   started_at: number;
+  duration_min: number;
   turns: number;
   tool_calls: number;
   input_tokens: number;
@@ -36,7 +37,8 @@ export function sessionsAnalyticsQuery(
            count(DISTINCT t.id) as turns,
            coalesce(sum(t.input_tokens), 0) as input_tokens,
            coalesce(sum(t.output_tokens), 0) as output_tokens,
-           coalesce(sum(t.cache_read_tokens), 0) as cache_read_tokens
+           coalesce(sum(t.cache_read_tokens), 0) as cache_read_tokens,
+           coalesce(sum(t.duration_ms), 0) as total_duration_ms
     ${joinBase} ${clause}
     GROUP BY s.session_id
     ORDER BY s.started_at DESC
@@ -44,6 +46,7 @@ export function sessionsAnalyticsQuery(
   `).all(...params, limit) as {
     session_id: string; workspace: string; started_at: number;
     turns: number; input_tokens: number; output_tokens: number; cache_read_tokens: number;
+    total_duration_ms: number;
   }[];
 
   const sessions: SessionAnalytics[] = rows.map(row => {
@@ -73,6 +76,7 @@ export function sessionsAnalyticsQuery(
       session_id: row.session_id,
       workspace: row.workspace,
       started_at: row.started_at,
+      duration_min: Math.round(row.total_duration_ms / 60000 * 10) / 10,
       turns: row.turns,
       tool_calls: toolStats.total,
       input_tokens: row.input_tokens,
@@ -103,7 +107,7 @@ export function sessionsAnalyticsCli(db: Database.Database, options: AnalyticsCl
   console.log(chalk.bold('\nSession Analytics\n'));
   for (const s of result.sessions) {
     const outcome = s.outcome.committed ? chalk.green('committed') : chalk.dim('no commit');
-    console.log(`  ${s.session_id.slice(0, 8)}  ${s.workspace}  ${s.turns} turns  ${s.tool_calls} tools  ${s.input_tokens.toLocaleString()} in  ${outcome}`);
+    console.log(`  ${s.session_id.slice(0, 8)}  ${s.workspace}  ${s.duration_min}min  ${s.turns} turns  ${s.tool_calls} tools  ${s.input_tokens.toLocaleString()} in  ${outcome}`);
     if (s.error_count > 0) {
       console.log(`    ${chalk.yellow(`${s.error_count} errors (${Math.round(s.error_rate * 100)}%)`)}`);
     }
