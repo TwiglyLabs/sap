@@ -1,0 +1,72 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [{
+          "type": "command",
+          "command": "sap record --event session-start",
+          "timeout": 5000
+        }]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [{
+          "type": "command",
+          "command": "sap record --event session-end",
+          "timeout": 5000
+        }]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [{
+          "type": "command",
+          "command": "sap record --event turn-complete",
+          "timeout": 5000
+        }]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [{
+          "type": "command",
+          "command": "sap record --event attention-permission",
+          "timeout": 5000
+        }]
+      },
+      {
+        "matcher": "idle_prompt",
+        "hooks": [{
+          "type": "command",
+          "command": "sap record --event attention-idle",
+          "timeout": 5000
+        }]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [{
+          "type": "command",
+          "command": "sap record --event user-prompt",
+          "timeout": 5000
+        }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [{
+          "type": "command",
+          "command": "sap record --event tool-use",
+          "timeout": 5000
+        }]
+      }
+    ]
+  }
+}
