@@ -11,14 +11,18 @@ import {
   getSession,
   parseDuration,
   buildWhereClause,
+  insertSession,
 } from './index.ts';
 
 describe('library analytics parity', () => {
   const tmpDb = `/tmp/sap-lib-analytics-${process.pid}.db`;
   const tmpTranscript = `/tmp/sap-lib-transcript-${process.pid}.jsonl`;
+  const tmpTranscript2 = `/tmp/sap-lib-transcript-${process.pid}-2.jsonl`;
+  const tmpTranscript3 = `/tmp/sap-lib-transcript-${process.pid}-3.jsonl`;
+  const tmpTranscript4 = `/tmp/sap-lib-transcript-${process.pid}-4.jsonl`;
 
   afterEach(() => {
-    for (const f of [tmpDb, tmpDb + '-wal', tmpDb + '-shm', tmpTranscript]) {
+    for (const f of [tmpDb, tmpDb + '-wal', tmpDb + '-shm', tmpTranscript, tmpTranscript2, tmpTranscript3, tmpTranscript4]) {
       try { unlinkSync(f); } catch {}
     }
   });
@@ -201,5 +205,377 @@ describe('library analytics parity', () => {
     const withBoth = buildWhereClause({ workspace: 'repo:main', sinceMs: 86400000 });
     expect(withBoth.clause).toContain('AND');
     expect(withBoth.params.length).toBe(2);
+  });
+
+  it('summaryQuery with workspace filter', () => {
+    const db = openDb(tmpDb);
+
+    // Create session for workspace repo-a:main
+    const transcriptA = [
+      {
+        type: 'user',
+        sessionId: 'ws-a-1',
+        timestamp: new Date(1000).toISOString(),
+        uuid: 'u1',
+        message: { content: 'Test A' },
+      },
+      {
+        type: 'assistant',
+        sessionId: 'ws-a-1',
+        timestamp: new Date(2000).toISOString(),
+        uuid: 'a1',
+        message: {
+          model: 'claude-sonnet-4-5-20250929',
+          content: [
+            { type: 'tool_use', id: 'tu1', name: 'Read', input: { file_path: '/a.ts' } },
+          ],
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 500,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      },
+      {
+        type: 'user',
+        sessionId: 'ws-a-1',
+        timestamp: new Date(3000).toISOString(),
+        uuid: 'u2',
+        message: {
+          content: [
+            { type: 'tool_result', tool_use_id: 'tu1', content: 'ok', is_error: false },
+          ],
+        },
+      },
+    ].map(l => JSON.stringify(l)).join('\n');
+
+    // Create session for workspace repo-b:dev
+    const transcriptB = [
+      {
+        type: 'user',
+        sessionId: 'ws-b-1',
+        timestamp: new Date(1000).toISOString(),
+        uuid: 'u1',
+        message: { content: 'Test B' },
+      },
+      {
+        type: 'assistant',
+        sessionId: 'ws-b-1',
+        timestamp: new Date(2000).toISOString(),
+        uuid: 'a1',
+        message: {
+          model: 'claude-sonnet-4-5-20250929',
+          content: [
+            { type: 'tool_use', id: 'tu1', name: 'Edit', input: { file_path: '/b.ts', old_string: 'x', new_string: 'y' } },
+          ],
+          usage: {
+            input_tokens: 2000,
+            output_tokens: 1000,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      },
+      {
+        type: 'user',
+        sessionId: 'ws-b-1',
+        timestamp: new Date(3000).toISOString(),
+        uuid: 'u2',
+        message: {
+          content: [
+            { type: 'tool_result', tool_use_id: 'tu1', content: 'ok', is_error: false },
+          ],
+        },
+      },
+    ].map(l => JSON.stringify(l)).join('\n');
+
+    writeFileSync(tmpTranscript2, transcriptA);
+    writeFileSync(tmpTranscript3, transcriptB);
+
+    insertSession(db, { session_id: 'ws-a-1', workspace: 'repo-a:main', cwd: '/tmp/a', transcript_path: tmpTranscript2, started_at: Date.now() });
+    insertSession(db, { session_id: 'ws-b-1', workspace: 'repo-b:dev', cwd: '/tmp/b', transcript_path: tmpTranscript3, started_at: Date.now() });
+
+    ingestSession(db, 'ws-a-1');
+    ingestSession(db, 'ws-b-1');
+
+    // Query for workspace repo-a:main
+    const summaryA = summaryQuery(db, { workspace: 'repo-a:main' });
+    expect(summaryA.sessions.total).toBe(1);
+    expect(summaryA.tokens.total_input).toBe(1000);
+    expect(summaryA.tokens.total_output).toBe(500);
+    expect(summaryA.tools.total_calls).toBe(1);
+
+    // Query for workspace repo-b:dev
+    const summaryB = summaryQuery(db, { workspace: 'repo-b:dev' });
+    expect(summaryB.sessions.total).toBe(1);
+    expect(summaryB.tokens.total_input).toBe(2000);
+    expect(summaryB.tokens.total_output).toBe(1000);
+
+    // Query all workspaces
+    const summaryAll = summaryQuery(db, {});
+    expect(summaryAll.sessions.total).toBe(2);
+    expect(summaryAll.tokens.total_input).toBe(3000);
+
+    db.close();
+  });
+
+  it('toolsQuery with workspace filter', () => {
+    const db = openDb(tmpDb);
+
+    // Create session for workspace repo-a:main with Read tool
+    const transcriptA = [
+      {
+        type: 'user',
+        sessionId: 'ws-a-2',
+        timestamp: new Date(1000).toISOString(),
+        uuid: 'u1',
+        message: { content: 'Test A' },
+      },
+      {
+        type: 'assistant',
+        sessionId: 'ws-a-2',
+        timestamp: new Date(2000).toISOString(),
+        uuid: 'a1',
+        message: {
+          model: 'claude-sonnet-4-5-20250929',
+          content: [
+            { type: 'tool_use', id: 'tu1', name: 'Read', input: { file_path: '/a.ts' } },
+          ],
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 500,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      },
+      {
+        type: 'user',
+        sessionId: 'ws-a-2',
+        timestamp: new Date(3000).toISOString(),
+        uuid: 'u2',
+        message: {
+          content: [
+            { type: 'tool_result', tool_use_id: 'tu1', content: 'ok', is_error: false },
+          ],
+        },
+      },
+    ].map(l => JSON.stringify(l)).join('\n');
+
+    // Create session for workspace repo-b:dev with Bash tool
+    const transcriptB = [
+      {
+        type: 'user',
+        sessionId: 'ws-b-2',
+        timestamp: new Date(1000).toISOString(),
+        uuid: 'u1',
+        message: { content: 'Test B' },
+      },
+      {
+        type: 'assistant',
+        sessionId: 'ws-b-2',
+        timestamp: new Date(2000).toISOString(),
+        uuid: 'a1',
+        message: {
+          model: 'claude-sonnet-4-5-20250929',
+          content: [
+            { type: 'tool_use', id: 'tu1', name: 'Bash', input: { command: 'ls' } },
+          ],
+          usage: {
+            input_tokens: 2000,
+            output_tokens: 1000,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      },
+      {
+        type: 'user',
+        sessionId: 'ws-b-2',
+        timestamp: new Date(3000).toISOString(),
+        uuid: 'u2',
+        message: {
+          content: [
+            { type: 'tool_result', tool_use_id: 'tu1', content: 'ok', is_error: false },
+          ],
+        },
+      },
+    ].map(l => JSON.stringify(l)).join('\n');
+
+    writeFileSync(tmpTranscript2, transcriptA);
+    writeFileSync(tmpTranscript3, transcriptB);
+
+    insertSession(db, { session_id: 'ws-a-2', workspace: 'repo-a:main', cwd: '/tmp/a', transcript_path: tmpTranscript2, started_at: Date.now() });
+    insertSession(db, { session_id: 'ws-b-2', workspace: 'repo-b:dev', cwd: '/tmp/b', transcript_path: tmpTranscript3, started_at: Date.now() });
+
+    ingestSession(db, 'ws-a-2');
+    ingestSession(db, 'ws-b-2');
+
+    // Query for workspace repo-a:main
+    const toolsA = toolsQuery(db, { workspace: 'repo-a:main' });
+    expect(toolsA.tools.length).toBe(1);
+    expect(toolsA.tools[0].tool).toBe('Read');
+    expect(toolsA.tools[0].count).toBe(1);
+
+    // Query for workspace repo-b:dev
+    const toolsB = toolsQuery(db, { workspace: 'repo-b:dev' });
+    expect(toolsB.tools.length).toBe(1);
+    expect(toolsB.tools[0].tool).toBe('Bash');
+    expect(toolsB.tools[0].count).toBe(1);
+
+    // Query all workspaces
+    const toolsAll = toolsQuery(db, {});
+    expect(toolsAll.tools.length).toBe(2);
+
+    db.close();
+  });
+
+  it('patternsQuery with anti-patterns', () => {
+    const db = openDb(tmpDb);
+
+    // Create session with failed Edit and Bash tool calls
+    const transcript = [
+      {
+        type: 'user',
+        sessionId: 'anti-pattern-test',
+        timestamp: new Date(1000).toISOString(),
+        uuid: 'u1',
+        message: { content: 'Fix the code' },
+      },
+      {
+        type: 'assistant',
+        sessionId: 'anti-pattern-test',
+        timestamp: new Date(2000).toISOString(),
+        uuid: 'a1',
+        message: {
+          model: 'claude-sonnet-4-5-20250929',
+          content: [
+            { type: 'tool_use', id: 'tu1', name: 'Edit', input: { file_path: '/app.ts', old_string: 'bad', new_string: 'good' } },
+          ],
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 500,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      },
+      {
+        type: 'user',
+        sessionId: 'anti-pattern-test',
+        timestamp: new Date(3000).toISOString(),
+        uuid: 'u2',
+        message: {
+          content: [
+            { type: 'tool_result', tool_use_id: 'tu1', content: 'Edit failed: string not found', is_error: true },
+          ],
+        },
+      },
+      {
+        type: 'assistant',
+        sessionId: 'anti-pattern-test',
+        timestamp: new Date(4000).toISOString(),
+        uuid: 'a2',
+        message: {
+          model: 'claude-sonnet-4-5-20250929',
+          content: [
+            { type: 'tool_use', id: 'tu2', name: 'Bash', input: { command: 'invalid-command' } },
+          ],
+          usage: {
+            input_tokens: 800,
+            output_tokens: 300,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      },
+      {
+        type: 'user',
+        sessionId: 'anti-pattern-test',
+        timestamp: new Date(5000).toISOString(),
+        uuid: 'u3',
+        message: {
+          content: [
+            { type: 'tool_result', tool_use_id: 'tu2', content: 'command not found', is_error: true },
+          ],
+        },
+      },
+    ].map(l => JSON.stringify(l)).join('\n');
+
+    writeFileSync(tmpTranscript, transcript);
+
+    insertSession(db, { session_id: 'anti-pattern-test', workspace: 'test:main', cwd: '/tmp/test', transcript_path: tmpTranscript, started_at: Date.now() });
+    ingestSession(db, 'anti-pattern-test');
+
+    const patterns = patternsQuery(db, {});
+    expect(patterns.anti_patterns.length).toBeGreaterThan(0);
+
+    // Check for edit-retry anti-pattern
+    const editRetry = patterns.anti_patterns.find(p => p.pattern === 'edit-retry');
+    expect(editRetry).toBeDefined();
+    expect(editRetry!.frequency).toBeGreaterThan(0);
+    expect(editRetry!.sessions_affected).toBe(1);
+
+    // Check for bash-error anti-pattern
+    const bashError = patterns.anti_patterns.find(p => p.pattern === 'bash-error');
+    expect(bashError).toBeDefined();
+    expect(bashError!.frequency).toBeGreaterThan(0);
+    expect(bashError!.sessions_affected).toBe(1);
+
+    db.close();
+  });
+
+  it('patternsQuery with outlier sessions', () => {
+    const db = openDb(tmpDb);
+
+    // Outlier detection uses threshold = 3 * avg(per-session input_tokens).
+    // The avg includes the outlier itself, so we need many normal sessions
+    // to dilute the average enough for the outlier to exceed 3x avg.
+    // 5 normals at 1000 + 1 outlier at 50000:
+    //   avg = (5000 + 50000) / 6 = 9166.67
+    //   threshold = 27500
+    //   50000 > 27500 → detected
+
+    function makeNormalTranscript(sid: string): string {
+      return [
+        { type: 'user', sessionId: sid, timestamp: new Date(1000).toISOString(), uuid: 'u1', message: { content: 'Task' } },
+        { type: 'assistant', sessionId: sid, timestamp: new Date(2000).toISOString(), uuid: 'a1', message: { model: 'claude-sonnet-4-5-20250929', content: [{ type: 'tool_use', id: 'tu1', name: 'Read', input: { file_path: '/a.ts' } }], usage: { input_tokens: 1000, output_tokens: 500, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } },
+        { type: 'user', sessionId: sid, timestamp: new Date(3000).toISOString(), uuid: 'u2', message: { content: [{ type: 'tool_result', tool_use_id: 'tu1', content: 'ok', is_error: false }] } },
+      ].map(l => JSON.stringify(l)).join('\n');
+    }
+
+    const outlierTranscript = [
+      { type: 'user', sessionId: 'outlier-1', timestamp: new Date(1000).toISOString(), uuid: 'u1', message: { content: 'Complex task' } },
+      { type: 'assistant', sessionId: 'outlier-1', timestamp: new Date(2000).toISOString(), uuid: 'a1', message: { model: 'claude-sonnet-4-5-20250929', content: [{ type: 'tool_use', id: 'tu1', name: 'Read', input: { file_path: '/huge.ts' } }], usage: { input_tokens: 50000, output_tokens: 20000, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } },
+      { type: 'user', sessionId: 'outlier-1', timestamp: new Date(3000).toISOString(), uuid: 'u2', message: { content: [{ type: 'tool_result', tool_use_id: 'tu1', content: 'ok', is_error: false }] } },
+    ].map(l => JSON.stringify(l)).join('\n');
+
+    // Write 5 normal transcripts to tmpTranscript2, and outlier to tmpTranscript3
+    const normalPaths: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const p = `/tmp/sap-lib-outlier-normal-${process.pid}-${i}.jsonl`;
+      normalPaths.push(p);
+      writeFileSync(p, makeNormalTranscript(`normal-${i}`));
+      insertSession(db, { session_id: `normal-${i}`, workspace: 'test:main', cwd: '/tmp/test', transcript_path: p, started_at: Date.now() });
+      ingestSession(db, `normal-${i}`);
+    }
+
+    writeFileSync(tmpTranscript4, outlierTranscript);
+    insertSession(db, { session_id: 'outlier-1', workspace: 'test:main', cwd: '/tmp/test', transcript_path: tmpTranscript4, started_at: Date.now() });
+    ingestSession(db, 'outlier-1');
+
+    const patterns = patternsQuery(db, {});
+    expect(patterns.outlier_sessions.length).toBeGreaterThan(0);
+
+    const outlier = patterns.outlier_sessions.find(s => s.session_id === 'outlier-1');
+    expect(outlier).toBeDefined();
+    expect(outlier!.value).toBe(50000);
+    expect(outlier!.reason).toContain('average');
+
+    // Cleanup extra files
+    for (const p of normalPaths) { try { unlinkSync(p); } catch {} }
+
+    db.close();
   });
 });
