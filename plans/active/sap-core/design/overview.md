@@ -27,10 +27,21 @@ SQLite (~/.sap/sap.db)    ← WAL mode, handles concurrent writes
 sap status --json         ← consumers poll this (Emacs, scripts, etc.)
 ```
 
+## Session States
+
+Sessions have four states, visible to consumers like Emacs:
+
+- **active** — Claude is working (processing prompt, using tools)
+- **idle** — Claude finished its response turn, awaiting user input
+- **attention** — Claude needs user action (permission prompt or idle timeout)
+- **stopped** — Session has ended
+
+Additionally, `sap status` annotates sessions as **stale** (computed, not stored) when `last_event_at` is older than 10 minutes, indicating likely-dead sessions.
+
 ## Design Principles
 
 1. **Event-sourced** — raw events are the source of truth; derived state is computed
-2. **Git-aware** — workspaces identified by repo:branch, inferred from cwd
+2. **Git-aware** — workspaces identified by repo:branch, inferred from cwd via `--git-common-dir` for stable identity across worktrees
 3. **Latest-wins** — multiple sessions on same workspace: most recent takes precedence
 4. **Analysis-ready** — full event log + transcript paths enable future session analysis
 5. **Zero config** — hooks call `sap record`, consumers call `sap status`. No setup beyond installing hooks.
