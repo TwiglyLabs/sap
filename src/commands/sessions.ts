@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { getSessionHistory } from '../db.ts';
 import type { Session } from '../types.ts';
 
-interface SessionsQueryOptions {
+export interface SessionsQueryOptions {
   workspace?: string;
   limit: number;
 }

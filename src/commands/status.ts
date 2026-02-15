@@ -5,7 +5,7 @@ import type { SessionStatus } from '../types.ts';
 
 const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
 
-interface StatusResult {
+export interface StatusResult {
   sessions: SessionStatus[];
 }
 
@@ -21,7 +21,7 @@ export function statusQuery(db: Database.Database, workspace?: string): StatusRe
   };
 }
 
-interface GroupedStatusResult {
+export interface GroupedStatusResult {
   workspaces: Record<string, SessionStatus[]>;
 }
 

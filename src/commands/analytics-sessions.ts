@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import chalk from 'chalk';
 import { buildWhereClause, type FilterOptions, type AnalyticsCliOptions, parseAnalyticsOptions } from './analytics-common.ts';
 
-interface SessionAnalytics {
+export interface SessionAnalytics {
   session_id: string;
   workspace: string;
   started_at: number;
