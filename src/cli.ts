@@ -7,6 +7,7 @@ import { latestCommand } from './commands/latest.ts';
 import { sessionsCommand } from './commands/sessions.ts';
 import { gcCli } from './commands/gc.ts';
 import { sweepCli } from './commands/sweep.ts';
+import { ingestCli } from './commands/ingest.ts';
 import type { EventType } from './types.ts';
 
 const VALID_EVENTS: EventType[] = [
@@ -165,6 +166,29 @@ program
   .action((options) => {
     const db = openDb();
     sweepCli(db, options);
+    db.close();
+  });
+
+program
+  .command('ingest')
+  .description(
+    'Parse transcript files and populate analytics tables (turns, tool_calls).\n\n' +
+    'Reads the JSONL transcript files referenced by sessions and extracts\n' +
+    'turn-level data: token usage, tool calls, prompt text, durations.\n' +
+    'Already-ingested sessions are skipped unless --force is used.\n\n' +
+    'JSON output: { "ingested": N, "skipped": N, "errors": [...] }\n\n' +
+    'Example:\n' +
+    '  sap ingest --since 7d\n' +
+    '  sap ingest --session abc123 --force\n' +
+    '  sap ingest --json'
+  )
+  .option('--session <id>', 'Ingest a specific session')
+  .option('--since <duration>', 'Only ingest sessions from this period (e.g. "7d", "24h")')
+  .option('--force', 'Re-ingest already-processed sessions')
+  .option('--json', 'Output as JSON')
+  .action((options) => {
+    const db = openDb();
+    ingestCli(db, options);
     db.close();
   });
 
