@@ -1,5 +1,6 @@
 import * as esbuild from 'esbuild';
 import { chmodSync } from 'fs';
+import { execSync } from 'child_process';
 
 const minify = process.argv.includes('--minify');
 
@@ -32,3 +33,6 @@ await esbuild.build({
   sourcemap: true,
   minify,
 });
+
+// TypeScript declarations
+execSync('npx tsc -p tsconfig.build.json', { stdio: 'inherit' });
