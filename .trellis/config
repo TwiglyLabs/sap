@@ -1,2 +1,3 @@
 project: sap
 plans_dir: plans
+manifest: git@github.com:twiglylabs/twiglylabs.git
