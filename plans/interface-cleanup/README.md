@@ -1,6 +1,6 @@
 ---
 title: Interface Cleanup
-status: not_started
+status: done
 description: >-
   Rationalize public API surface, consistent error handling, clean library
   contract
@@ -10,6 +10,8 @@ tags:
   - api
   - breaking-change
 not_started_at: '2026-02-21T01:03:03.659Z'
+started_at: '2026-02-21T02:10:59.029Z'
+completed_at: '2026-02-21T02:58:58.216Z'
 ---
 
 ## Problem
