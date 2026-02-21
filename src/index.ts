@@ -4,6 +4,7 @@ export type { Sap, SapOptions } from './sap.ts';
 
 // --- Core types ---
 export type {
+  Result,
   SessionState,
   EventType,
   SessionStartSource,
@@ -14,6 +15,9 @@ export type {
   ToolCall,
   WorkspaceEntry,
 } from './core/types.ts';
+
+// --- Result helpers ---
+export { ok, err } from './core/utils.ts';
 
 // --- Core utilities ---
 export { openDb, DEFAULT_DB_PATH } from './core/storage.ts';

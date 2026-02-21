@@ -3,7 +3,6 @@ export interface IngestResult {
   turns: number;
   toolCalls: number;
   skipped: boolean;
-  error?: string;
 }
 
 export interface IngestOptions {

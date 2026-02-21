@@ -1,3 +1,8 @@
+import type { Result } from './types.ts';
+
+export function ok<T>(data: T): Result<T> { return { ok: true, data }; }
+export function err<T = never>(error: string): Result<T> { return { ok: false, error }; }
+
 export function parseDuration(s: string): number {
   const match = s.match(/^(\d+)([dhm])$/);
   if (!match) throw new Error(`Invalid duration: ${s}. Use format like "7d", "24h", "30m".`);

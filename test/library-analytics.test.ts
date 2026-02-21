@@ -58,8 +58,10 @@ describe('library analytics parity', () => {
     });
 
     const result = ingestion.ingestSession('analytics-test');
-    expect(result.turns).toBe(1);
-    expect(result.toolCalls).toBe(2);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.turns).toBe(1);
+    expect(result.data.toolCalls).toBe(2);
 
     const summary = analytics.summary({});
     expect(summary.period.until).toBeDefined();

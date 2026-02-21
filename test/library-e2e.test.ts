@@ -153,8 +153,10 @@ describe('library e2e (built artifact)', () => {
 
       // Ingest
       const ingestResult = sap.ingestion.ingestSession('e2e-ingest');
-      expect(ingestResult.turns).toBe(1);
-      expect(ingestResult.toolCalls).toBe(2);
+      expect(ingestResult.ok).toBe(true);
+      if (!ingestResult.ok) return;
+      expect(ingestResult.data.turns).toBe(1);
+      expect(ingestResult.data.toolCalls).toBe(2);
 
       // Analytics
       const summary = sap.analytics.summary({});
