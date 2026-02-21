@@ -1,7 +1,10 @@
+/** Discriminated union for fallible operations. Check `.ok` before accessing `.data` or `.error`. */
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
+/** Session lifecycle state. Transitions: active → idle → attention → stopped. */
 export type SessionState = 'active' | 'idle' | 'attention' | 'stopped';
 
+/** Hook event types emitted by Claude Code. */
 export type EventType =
   | 'session-start'
   | 'session-end'
@@ -11,8 +14,10 @@ export type EventType =
   | 'user-prompt'
   | 'tool-use';
 
+/** How a session was started. */
 export type SessionStartSource = 'startup' | 'resume' | 'clear' | 'compact';
 
+/** JSON payload from a Claude Code hook event. Fields are event-type-dependent. */
 export interface HookPayload {
   session_id: string;
   cwd: string;
@@ -37,6 +42,7 @@ export interface HookPayload {
   stop_hook_active?: boolean;
 }
 
+/** Persistent session record stored in SQLite. */
 export interface Session {
   session_id: string;
   workspace: string;
@@ -51,10 +57,12 @@ export interface Session {
   ingested_at: number | null;
 }
 
+/** Session with a computed `stale` flag (last event older than 10 minutes). */
 export interface SessionStatus extends Session {
   stale: boolean;
 }
 
+/** A single agent turn parsed from a transcript, with token usage and timing. */
 export interface Turn {
   id: number;
   session_id: string;
@@ -71,6 +79,7 @@ export interface Turn {
   duration_ms: number | null;
 }
 
+/** A tool invocation within a turn, with success/error tracking. */
 export interface ToolCall {
   id: number;
   session_id: string;
@@ -83,6 +92,7 @@ export interface ToolCall {
   created_at: number;
 }
 
+/** Cached git workspace resolution (cwd → "repo:branch"). */
 export interface WorkspaceEntry {
   cwd: string;
   repo_name: string;

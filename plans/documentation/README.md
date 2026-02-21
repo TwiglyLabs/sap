@@ -1,12 +1,14 @@
 ---
 title: Documentation
-status: not_started
+status: done
 description: Root CLAUDE.md for agent context and README for human consumers
 depends_on:
   - architecture-restructure
 tags:
   - documentation
 not_started_at: '2026-02-21T01:03:04.206Z'
+started_at: '2026-02-21T03:09:00.509Z'
+completed_at: '2026-02-21T03:18:50.872Z'
 ---
 
 ## Problem

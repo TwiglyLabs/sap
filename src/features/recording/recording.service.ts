@@ -3,12 +3,14 @@ import { extractToolDetail } from '../ingestion/tool-detail.ts';
 import type { RecordingRepository } from './recording.repository.ts';
 import type { WorkspaceService } from '../workspace/workspace.service.ts';
 
+/** Records Claude Code hook events, managing session state transitions and event storage. */
 export class RecordingService {
   constructor(
     private repo: RecordingRepository,
     private workspaceService: WorkspaceService,
   ) {}
 
+  /** Process a hook event: create/update session state and store the event. */
   recordEvent(eventType: EventType, data: HookPayload): void {
     const now = Date.now();
 
@@ -139,6 +141,7 @@ export class RecordingService {
   }
 }
 
+/** Parse raw JSON stdin into a validated HookPayload. Throws on invalid input. */
 export function parsePayload(raw: string): HookPayload {
   let parsed: unknown;
   try {

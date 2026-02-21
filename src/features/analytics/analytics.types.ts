@@ -1,3 +1,4 @@
+/** Time and workspace filters for analytics queries. */
 export interface FilterOptions {
   workspace?: string;
   sinceMs?: number;
@@ -14,6 +15,7 @@ export interface AnalyticsCliOptions {
   json?: boolean;
 }
 
+/** High-level usage metrics: session counts, token totals, top tools. */
 export interface SummaryResult {
   period: {
     since: string | null;
@@ -39,6 +41,7 @@ export interface SummaryResult {
   };
 }
 
+/** Per-tool breakdown: usage counts, success rates, error details, and common sequences. */
 export interface ToolsResult {
   tools: {
     tool: string;
@@ -54,6 +57,7 @@ export interface ToolsResult {
   }[];
 }
 
+/** Per-session metrics for comparing efficiency and outcomes. */
 export interface SessionAnalytics {
   session_id: string;
   workspace: string;
@@ -72,10 +76,12 @@ export interface SessionAnalytics {
   };
 }
 
+/** Collection of per-session analytics. */
 export interface SessionsAnalyticsResult {
   sessions: SessionAnalytics[];
 }
 
+/** Detected anti-patterns and outlier sessions. */
 export interface PatternsResult {
   anti_patterns: {
     pattern: string;
@@ -91,6 +97,7 @@ export interface PatternsResult {
   }[];
 }
 
+/** Raw SQL query result: array of row objects. */
 export interface QueryResult {
   rows: Record<string, unknown>[];
   error?: string;

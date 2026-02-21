@@ -38,9 +38,11 @@ export function resolveWorkspaceFromGit(cwd: string): WorkspaceResolution | null
   };
 }
 
+/** Resolves working directories to "repo:branch" workspace identifiers via git. */
 export class WorkspaceService {
   constructor(private repo: WorkspaceRepository) {}
 
+  /** Resolve cwd to a workspace string. Uses cache unless forceResolve is true. Falls back to "dirname:local". */
   resolveWorkspace(cwd: string, forceResolve: boolean): string {
     if (!forceResolve) {
       const cached = this.repo.getCachedWorkspace(cwd);

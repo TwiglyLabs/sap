@@ -10,19 +10,29 @@ import { IngestionService } from './features/ingestion/ingestion.service.ts';
 import { AnalyticsRepositorySqlite } from './features/analytics/sqlite/analytics.repository.sqlite.ts';
 import { AnalyticsService } from './features/analytics/analytics.service.ts';
 
+/** Options for creating a SAP instance. */
 export interface SapOptions {
+  /** SQLite database path. Defaults to ~/.sap/sap.db or SAP_DB_PATH env var. Use ':memory:' for tests. */
   dbPath?: string;
 }
 
+/** SAP instance with all services wired to a shared SQLite database. */
 export interface Sap {
+  /** Session lifecycle: status, history, gc, sweep. */
   sessions: SessionService;
+  /** Git workspace resolution and caching. */
   workspace: WorkspaceService;
+  /** Hook event recording from Claude Code. */
   recording: RecordingService;
+  /** Transcript JSONL parsing into turns and tool calls. */
   ingestion: IngestionService;
+  /** Usage analytics: summary, tools, sessions, patterns, raw SQL. */
   analytics: AnalyticsService;
+  /** Close the underlying database connection. */
   close(): void;
 }
 
+/** Create a SAP instance. Opens the database and wires all services. */
 export function createSap(options?: SapOptions): Sap {
   const db = openDb(options?.dbPath ?? DEFAULT_DB_PATH);
   const sessionRepo = new SessionRepositorySqlite(db);

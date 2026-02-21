@@ -6,9 +6,11 @@ import type { IngestResult, IngestOptions, BatchResult, BatchOptions } from './i
 import type { Result } from '../../core/types.ts';
 import { ok, err } from '../../core/utils.ts';
 
+/** Parses JSONL transcript files into structured turn and tool call records. */
 export class IngestionService {
   constructor(private repo: IngestionRepository) {}
 
+  /** Ingest a single session's transcript. Skips already-ingested unless force is set. */
   ingestSession(sessionId: string, options: IngestOptions = {}): Result<IngestResult> {
     const session = this.repo.getSession(sessionId);
     if (!session) {
@@ -88,6 +90,7 @@ export class IngestionService {
     return ok({ sessionId, turns: turnData.length, toolCalls: totalToolCalls, skipped: false });
   }
 
+  /** Ingest multiple sessions. Filters by sessionId or sinceMs. */
   ingestBatch(options: BatchOptions): BatchResult {
     let sessions: { session_id: string; transcript_path: string | null; started_at: number; ingested_at: number | null }[];
 

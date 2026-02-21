@@ -1,3 +1,4 @@
+/** Result of ingesting a single session's transcript. */
 export interface IngestResult {
   sessionId: string;
   turns: number;
@@ -5,10 +6,12 @@ export interface IngestResult {
   skipped: boolean;
 }
 
+/** Options for single-session ingestion. */
 export interface IngestOptions {
   force?: boolean;
 }
 
+/** Aggregated result of batch ingestion across multiple sessions. */
 export interface BatchResult {
   ingested: number;
   skipped: number;
@@ -16,6 +19,7 @@ export interface BatchResult {
   results: IngestResult[];
 }
 
+/** Options for batch ingestion: filter by session, time window, or force re-ingestion. */
 export interface BatchOptions {
   sessionId?: string;
   sinceMs?: number;

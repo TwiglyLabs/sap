@@ -26,6 +26,7 @@ export interface InsertToolCallParams {
   created_at: number;
 }
 
+/** Data access contract for transcript ingestion (turns and tool calls). */
 export interface IngestionRepository {
   getSession(sessionId: string): Session | null;
   insertTurn(params: InsertTurnParams): number;

@@ -7,6 +7,7 @@ import type {
   QueryResult,
 } from './analytics.types.ts';
 
+/** Data access contract for analytics queries. */
 export interface AnalyticsRepository {
   summaryQuery(filters: FilterOptions): SummaryResult;
   toolsQuery(filters: FilterOptions): ToolsResult;

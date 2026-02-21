@@ -15,6 +15,7 @@ export interface InsertEventParams {
   created_at: number;
 }
 
+/** Data access contract for recording hook events. */
 export interface RecordingRepository {
   getSession(sessionId: string): Session | null;
   insertSession(params: InsertSessionParams): void;

@@ -28,6 +28,7 @@ export interface SessionHistoryParams {
   limit: number;
 }
 
+/** Data access contract for session lifecycle operations. */
 export interface SessionRepository {
   getSession(sessionId: string): Session | null;
   getActiveSessions(workspace?: string): Session[];

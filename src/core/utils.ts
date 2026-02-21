@@ -1,6 +1,8 @@
 import type { Result } from './types.ts';
 
+/** Construct a success Result. */
 export function ok<T>(data: T): Result<T> { return { ok: true, data }; }
+/** Construct a failure Result. */
 export function err<T = never>(error: string): Result<T> { return { ok: false, error }; }
 
 export function parseDuration(s: string): number {
