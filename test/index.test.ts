@@ -1,36 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import {
-  // Factory
   createSap,
-  // Core
-  openDb,
-  DEFAULT_DB_PATH,
-  parseDuration,
-  STALE_THRESHOLD_MS,
-  // Services
-  SessionService,
-  RecordingService,
-  WorkspaceService,
-  IngestionService,
-  AnalyticsService,
-  // Recording
-  parsePayload,
-  // Workspace
-  resolveWorkspaceFromGit,
-  // Analytics utils
-  buildWhereClause,
-  parseAnalyticsOptions,
-  // Transcript
-  parseTranscriptLine,
-  groupIntoTurns,
-  // Tool detail
-  extractToolDetail,
+  ok,
+  err,
 } from '../src/index.ts';
 
 // Type-only imports — compile-time verification that types are re-exported
 import type {
   Sap,
   SapOptions,
+  Result,
   SessionState,
   EventType,
   SessionStartSource,
@@ -43,53 +22,47 @@ import type {
   StatusResult,
   GroupedStatusResult,
   SessionsQueryOptions,
-  EventRow,
-  SessionRepository,
   IngestResult,
   IngestOptions,
   BatchResult,
   BatchOptions,
   FilterOptions,
-  WhereClause,
-  AnalyticsCliOptions,
   SummaryResult,
   ToolsResult,
   SessionAnalytics,
   SessionsAnalyticsResult,
   PatternsResult,
   QueryResult,
-  TranscriptLine,
-  TranscriptToolUse,
-  TranscriptToolResult,
-  TranscriptUsage,
-  ParsedTurn,
 } from '../src/index.ts';
 
+// Subpath imports
+import { SessionService } from '../src/features/sessions/index.ts';
+import { RecordingService } from '../src/features/recording/index.ts';
+import { WorkspaceService } from '../src/features/workspace/index.ts';
+import { IngestionService } from '../src/features/ingestion/index.ts';
+import { AnalyticsService } from '../src/features/analytics/index.ts';
+
 describe('library API surface', () => {
-  it('exports factory and core infrastructure', () => {
+  it('exports factory and result helpers from main barrel', () => {
     expect(typeof createSap).toBe('function');
-    expect(typeof openDb).toBe('function');
-    expect(typeof DEFAULT_DB_PATH).toBe('string');
-    expect(typeof parseDuration).toBe('function');
-    expect(typeof STALE_THRESHOLD_MS).toBe('number');
+    expect(typeof ok).toBe('function');
+    expect(typeof err).toBe('function');
   });
 
-  it('exports service classes', () => {
+  it('ok/err helpers produce correct Result shapes', () => {
+    const success = ok(42);
+    expect(success).toEqual({ ok: true, data: 42 });
+
+    const failure = err('bad input');
+    expect(failure).toEqual({ ok: false, error: 'bad input' });
+  });
+
+  it('exports service classes via subpath imports', () => {
     expect(typeof SessionService).toBe('function');
     expect(typeof RecordingService).toBe('function');
     expect(typeof WorkspaceService).toBe('function');
     expect(typeof IngestionService).toBe('function');
     expect(typeof AnalyticsService).toBe('function');
-  });
-
-  it('exports utility functions', () => {
-    expect(typeof parsePayload).toBe('function');
-    expect(typeof resolveWorkspaceFromGit).toBe('function');
-    expect(typeof buildWhereClause).toBe('function');
-    expect(typeof parseAnalyticsOptions).toBe('function');
-    expect(typeof parseTranscriptLine).toBe('function');
-    expect(typeof groupIntoTurns).toBe('function');
-    expect(typeof extractToolDetail).toBe('function');
   });
 
   it('createSap returns Sap instance with all services', () => {

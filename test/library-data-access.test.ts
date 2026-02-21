@@ -1,7 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { writeFileSync, unlinkSync } from 'fs';
 import { openDb } from '../src/core/storage.ts';
-import { parsePayload, extractToolDetail, parseTranscriptLine, groupIntoTurns } from '../src/index.ts';
+import { parsePayload } from '../src/features/recording/recording.service.ts';
+import { extractToolDetail } from '../src/features/ingestion/tool-detail.ts';
+import { parseTranscriptLine, groupIntoTurns } from '../src/features/ingestion/transcript.ts';
 import { SessionRepositorySqlite } from '../src/features/sessions/sqlite/session.repository.sqlite.ts';
 import { IngestionRepositorySqlite } from '../src/features/ingestion/sqlite/ingestion.repository.sqlite.ts';
 import { IngestionService } from '../src/features/ingestion/ingestion.service.ts';
