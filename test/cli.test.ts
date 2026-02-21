@@ -82,4 +82,83 @@ describe('CLI integration', () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Session Awareness Protocol');
   });
+
+  it('record with unknown event type exits 1', () => {
+    const input = JSON.stringify({ session_id: 'cli-test-bad', cwd: '/tmp/fakerepo' });
+    const result = sap(['record', '--event', 'bogus-event'], input);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Unknown event type');
+  });
+
+  it('latest --json wraps session in { session } envelope', () => {
+    const input = JSON.stringify({
+      session_id: 'cli-test-latest',
+      cwd: '/tmp/fakerepo',
+      transcript_path: '',
+      permission_mode: 'default',
+      hook_event_name: 'SessionStart',
+      source: 'startup',
+    });
+    sap(['record', '--event', 'session-start'], input);
+
+    // Discover the resolved workspace name from status
+    const status = sap(['status', '--json']);
+    const workspace = JSON.parse(status.stdout).sessions[0].workspace;
+
+    const result = sap(['latest', '--workspace', workspace, '--json']);
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed).toHaveProperty('session');
+    expect(parsed.session).not.toBeNull();
+    expect(parsed.session.session_id).toBe('cli-test-latest');
+  });
+
+  it('latest --json returns { session: null } when no session found', () => {
+    const result = sap(['latest', '--workspace', 'nonexistent', '--json']);
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed).toEqual({ session: null });
+  });
+
+  it('latest without --json exits 1 when no session found', () => {
+    const result = sap(['latest', '--workspace', 'nonexistent']);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain('No sessions found');
+  });
+
+  it('sessions --json wraps in { sessions } envelope', () => {
+    const input = JSON.stringify({
+      session_id: 'cli-test-sessions',
+      cwd: '/tmp/fakerepo',
+      transcript_path: '',
+      permission_mode: 'default',
+      hook_event_name: 'SessionStart',
+      source: 'startup',
+    });
+    sap(['record', '--event', 'session-start'], input);
+
+    const result = sap(['sessions', '--json']);
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed).toHaveProperty('sessions');
+    expect(Array.isArray(parsed.sessions)).toBe(true);
+    expect(parsed.sessions.length).toBeGreaterThan(0);
+  });
+
+  it('query returns { rows } envelope for valid SQL', () => {
+    const result = sap(['query', 'SELECT count(*) as n FROM sessions']);
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed).toHaveProperty('rows');
+    expect(Array.isArray(parsed.rows)).toBe(true);
+    expect(parsed.rows[0]).toHaveProperty('n');
+  });
+
+  it('query returns { error } and exit code 1 for write statements', () => {
+    const result = sap(['query', 'DELETE FROM sessions']);
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed).toHaveProperty('error');
+    expect(parsed.error).toBeTruthy();
+  });
 });
