@@ -21,7 +21,7 @@ await esbuild.build({
 
 chmodSync('dist/sap.cjs', 0o755);
 
-// Library module — new
+// Library module — main barrel
 await esbuild.build({
   entryPoints: ['src/index.ts'],
   bundle: true,
@@ -29,6 +29,28 @@ await esbuild.build({
   target: 'node20',
   format: 'esm',
   outfile: 'dist/index.js',
+  external: ['better-sqlite3'],
+  sourcemap: true,
+  minify,
+});
+
+// Subpath exports — per-feature entry points
+const featureEntryPoints = [
+  'src/features/sessions/index.ts',
+  'src/features/recording/index.ts',
+  'src/features/analytics/index.ts',
+  'src/features/ingestion/index.ts',
+  'src/features/workspace/index.ts',
+];
+
+await esbuild.build({
+  entryPoints: featureEntryPoints,
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outdir: 'dist',
+  outbase: 'src',
   external: ['better-sqlite3'],
   sourcemap: true,
   minify,
