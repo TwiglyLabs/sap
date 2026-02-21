@@ -127,5 +127,5 @@ export function queryCli(service: AnalyticsService, sql: string, options: { json
     return;
   }
 
-  console.log(JSON.stringify(result.rows, null, 2));
+  console.log(JSON.stringify({ rows: result.rows }, null, 2));
 }
