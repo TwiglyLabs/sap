@@ -1,25 +1,6 @@
-// --- Database ---
-export { openDb, DEFAULT_DB_PATH } from './db.ts';
-export {
-  insertSession,
-  upsertSession,
-  getSession,
-  updateSessionState,
-  getActiveSessions,
-  insertEvent,
-  getSessionEvents,
-  upsertWorkspace,
-  getCachedWorkspace,
-  getLatestSession,
-  getSessionHistory,
-  markStaleSessions,
-  deleteStaleSessions,
-  insertTurn,
-  getSessionTurns,
-  insertToolCall,
-  getTurnToolCalls,
-} from './db.ts';
-export type { EventRow } from './db.ts';
+// --- Factory ---
+export { createSap } from './sap.ts';
+export type { Sap, SapOptions } from './sap.ts';
 
 // --- Core types ---
 export type {
@@ -32,72 +13,52 @@ export type {
   Turn,
   ToolCall,
   WorkspaceEntry,
-} from './types.ts';
+} from './core/types.ts';
 
-// --- Event recording ---
-export { recordEvent, parsePayload } from './commands/record.ts';
+// --- Core utilities ---
+export { openDb, DEFAULT_DB_PATH } from './core/storage.ts';
+export { parseDuration } from './core/utils.ts';
+export { STALE_THRESHOLD_MS } from './core/config.ts';
 
-// --- Session queries ---
-export { statusQuery, statusQueryGrouped } from './commands/status.ts';
-export type { StatusResult, GroupedStatusResult } from './commands/status.ts';
+// --- Session types ---
+export type { StatusResult, GroupedStatusResult, SessionsQueryOptions } from './features/sessions/session.types.ts';
+export type { EventRow, SessionRepository } from './features/sessions/session.repository.ts';
+export { SessionService } from './features/sessions/session.service.ts';
 
-export { latestQuery } from './commands/latest.ts';
+// --- Recording ---
+export { RecordingService, parsePayload } from './features/recording/recording.service.ts';
 
-export { sessionsQuery } from './commands/sessions.ts';
-export type { SessionsQueryOptions } from './commands/sessions.ts';
+// --- Workspace ---
+export { WorkspaceService, resolveWorkspaceFromGit } from './features/workspace/workspace.service.ts';
 
-// --- Lifecycle management ---
-export { gcCommand } from './commands/gc.ts';
-export { sweepCommand, parseSweepThreshold } from './commands/sweep.ts';
-
-// --- Transcript ingestion ---
-export { ingestSession, ingestBatch } from './commands/ingest.ts';
-export type {
-  IngestResult,
-  IngestOptions,
-  BatchResult,
-  BatchOptions,
-} from './commands/ingest.ts';
-
-// --- Raw query ---
-export { executeQuery } from './commands/query.ts';
-export type { QueryResult } from './commands/query.ts';
-
-// --- Analytics ---
-export { parseDuration, buildWhereClause, parseAnalyticsOptions } from './commands/analytics-common.ts';
-export type {
-  FilterOptions,
-  WhereClause,
-  AnalyticsCliOptions,
-} from './commands/analytics-common.ts';
-
-export { summaryQuery } from './commands/analytics-summary.ts';
-export type { SummaryResult } from './commands/analytics-summary.ts';
-
-export { toolsQuery } from './commands/analytics-tools.ts';
-export type { ToolsResult } from './commands/analytics-tools.ts';
-
-export { sessionsAnalyticsQuery } from './commands/analytics-sessions.ts';
-export type {
-  SessionAnalytics,
-  SessionsAnalyticsResult,
-} from './commands/analytics-sessions.ts';
-
-export { patternsQuery } from './commands/analytics-patterns.ts';
-export type { PatternsResult } from './commands/analytics-patterns.ts';
-
-// --- Workspace resolution ---
-export { resolveWorkspace, resolveWorkspaceFromGit } from './workspace.ts';
+// --- Ingestion ---
+export { IngestionService } from './features/ingestion/ingestion.service.ts';
+export type { IngestResult, IngestOptions, BatchResult, BatchOptions } from './features/ingestion/ingestion.types.ts';
 
 // --- Transcript parsing ---
-export { parseTranscriptLine, groupIntoTurns } from './transcript.ts';
+export { parseTranscriptLine, groupIntoTurns } from './features/ingestion/transcript.ts';
 export type {
   TranscriptToolUse,
   TranscriptToolResult,
   TranscriptUsage,
   TranscriptLine,
   ParsedTurn,
-} from './transcript.ts';
+} from './features/ingestion/transcript.ts';
 
 // --- Tool detail extraction ---
-export { extractToolDetail } from './tool-detail.ts';
+export { extractToolDetail } from './features/ingestion/tool-detail.ts';
+
+// --- Analytics ---
+export { AnalyticsService } from './features/analytics/analytics.service.ts';
+export { buildWhereClause, parseAnalyticsOptions } from './features/analytics/analytics.utils.ts';
+export type {
+  FilterOptions,
+  WhereClause,
+  AnalyticsCliOptions,
+  SummaryResult,
+  ToolsResult,
+  SessionAnalytics,
+  SessionsAnalyticsResult,
+  PatternsResult,
+  QueryResult,
+} from './features/analytics/analytics.types.ts';

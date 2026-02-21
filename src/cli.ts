@@ -1,25 +1,9 @@
 import { Command } from 'commander';
-import { readFileSync } from 'fs';
-import { openDb } from './db.ts';
-import { recordEvent, parsePayload } from './commands/record.ts';
-import { statusCommand } from './commands/status.ts';
-import { latestCommand } from './commands/latest.ts';
-import { sessionsCommand } from './commands/sessions.ts';
-import { gcCli } from './commands/gc.ts';
-import { sweepCli } from './commands/sweep.ts';
-import { ingestCli } from './commands/ingest.ts';
-import { queryCli } from './commands/query.ts';
-import { summaryCli } from './commands/analytics-summary.ts';
-import { toolsCli } from './commands/analytics-tools.ts';
-import { sessionsAnalyticsCli } from './commands/analytics-sessions.ts';
-import { patternsCli } from './commands/analytics-patterns.ts';
-import type { EventType } from './types.ts';
-
-const VALID_EVENTS: EventType[] = [
-  'session-start', 'session-end', 'turn-complete',
-  'attention-permission', 'attention-idle',
-  'user-prompt', 'tool-use',
-];
+import { createSap } from './sap.ts';
+import { statusCommand, latestCommand, sessionsCommand, gcCli, sweepCli } from './features/sessions/session.cli.ts';
+import { recordCli } from './features/recording/recording.cli.ts';
+import { ingestCli } from './features/ingestion/ingestion.cli.ts';
+import { summaryCli, toolsCli, sessionsAnalyticsCli, patternsCli, queryCli } from './features/analytics/analytics.cli.ts';
 
 const program = new Command();
 
@@ -52,30 +36,13 @@ program
     'Example:\n' +
     '  echo \'{"session_id":"abc","cwd":"/repo"}\' | sap record --event session-start'
   )
-  .requiredOption('--event <type>', `Event type: ${VALID_EVENTS.join(', ')}`)
+  .requiredOption('--event <type>', 'Event type: session-start, session-end, turn-complete, attention-permission, attention-idle, user-prompt, tool-use')
   .action((options) => {
-    const eventType = options.event as string;
-    if (!VALID_EVENTS.includes(eventType as EventType)) {
-      process.stderr.write(`Unknown event type: ${eventType}\n`);
-      process.exit(2);
-    }
-
-    let stdin: string;
+    const sap = createSap();
     try {
-      stdin = readFileSync(0, 'utf-8');
-    } catch {
-      process.stderr.write('Failed to read stdin\n');
-      process.exit(2);
-    }
-
-    try {
-      const payload = parsePayload(stdin);
-      const db = openDb();
-      recordEvent(db, eventType as EventType, payload);
-      db.close();
-    } catch (err) {
-      process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
-      process.exit(2);
+      recordCli(sap.recording, options.event as string);
+    } finally {
+      sap.close();
     }
   });
 
@@ -93,9 +60,9 @@ program
   .option('--group', 'Group sessions by workspace')
   .option('--json', 'Output as JSON')
   .action((options) => {
-    const db = openDb();
-    statusCommand(db, options);
-    db.close();
+    const sap = createSap();
+    statusCommand(sap.sessions, options);
+    sap.close();
   });
 
 program
@@ -111,9 +78,9 @@ program
   .requiredOption('--workspace <name>', 'Workspace name (e.g. "repo:branch")')
   .option('--json', 'Output as JSON')
   .action((options) => {
-    const db = openDb();
-    latestCommand(db, options);
-    db.close();
+    const sap = createSap();
+    latestCommand(sap.sessions, options);
+    sap.close();
   });
 
 program
@@ -130,9 +97,9 @@ program
   .option('--limit <n>', 'Number of sessions to show', '20')
   .option('--json', 'Output as JSON')
   .action((options) => {
-    const db = openDb();
-    sessionsCommand(db, { ...options, limit: parseInt(options.limit, 10) });
-    db.close();
+    const sap = createSap();
+    sessionsCommand(sap.sessions, { ...options, limit: parseInt(options.limit, 10) });
+    sap.close();
   });
 
 program
@@ -149,9 +116,9 @@ program
   .option('--older-than <duration>', 'Delete sessions older than (e.g. "30d")', '30d')
   .option('--json', 'Output as JSON')
   .action((options) => {
-    const db = openDb();
-    gcCli(db, { olderThan: options.olderThan, json: options.json });
-    db.close();
+    const sap = createSap();
+    gcCli(sap.sessions, { olderThan: options.olderThan, json: options.json });
+    sap.close();
   });
 
 program
@@ -169,9 +136,9 @@ program
   .option('--threshold <duration>', 'Staleness threshold (e.g. "10m", "30m")', '10m')
   .option('--json', 'Output as JSON')
   .action((options) => {
-    const db = openDb();
-    sweepCli(db, options);
-    db.close();
+    const sap = createSap();
+    sweepCli(sap.sessions, options);
+    sap.close();
   });
 
 program
@@ -192,9 +159,9 @@ program
   .option('--force', 'Re-ingest already-processed sessions')
   .option('--json', 'Output as JSON')
   .action((options) => {
-    const db = openDb();
-    ingestCli(db, options);
-    db.close();
+    const sap = createSap();
+    ingestCli(sap.ingestion, options);
+    sap.close();
   });
 
 program
@@ -210,9 +177,9 @@ program
   )
   .argument('<sql>', 'SQL query to execute')
   .action((sql) => {
-    const db = openDb();
-    queryCli(db, sql, { json: true });
-    db.close();
+    const sap = createSap();
+    queryCli(sap.analytics, sql, { json: true });
+    sap.close();
   });
 
 const analytics = program
@@ -226,9 +193,9 @@ analytics
   .option('--workspace <name>', 'Filter by workspace')
   .option('--json', 'Output as JSON')
   .action((options) => {
-    const db = openDb();
-    summaryCli(db, options);
-    db.close();
+    const sap = createSap();
+    summaryCli(sap.analytics, options);
+    sap.close();
   });
 
 analytics
@@ -238,9 +205,9 @@ analytics
   .option('--workspace <name>', 'Filter by workspace')
   .option('--json', 'Output as JSON')
   .action((options) => {
-    const db = openDb();
-    toolsCli(db, options);
-    db.close();
+    const sap = createSap();
+    toolsCli(sap.analytics, options);
+    sap.close();
   });
 
 analytics
@@ -251,9 +218,9 @@ analytics
   .option('--limit <n>', 'Number of sessions', '20')
   .option('--json', 'Output as JSON')
   .action((options) => {
-    const db = openDb();
-    sessionsAnalyticsCli(db, options);
-    db.close();
+    const sap = createSap();
+    sessionsAnalyticsCli(sap.analytics, options);
+    sap.close();
   });
 
 analytics
@@ -263,9 +230,9 @@ analytics
   .option('--workspace <name>', 'Filter by workspace')
   .option('--json', 'Output as JSON')
   .action((options) => {
-    const db = openDb();
-    patternsCli(db, options);
-    db.close();
+    const sap = createSap();
+    patternsCli(sap.analytics, options);
+    sap.close();
   });
 
 program.parse();
