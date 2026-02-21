@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "trellis": {
+      "type": "stdio",
+      "command": "trellis",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}
