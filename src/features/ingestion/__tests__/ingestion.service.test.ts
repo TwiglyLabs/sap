@@ -50,10 +50,11 @@ describe('IngestionService', () => {
       sessionRepo.insertSession({ session_id: 'test-ingest', workspace: 'ws', cwd: '/', transcript_path: TRANSCRIPT, started_at: 1000 });
 
       const result = ingestion.ingestSession('test-ingest');
-      expect(result.turns).toBe(1);
-      expect(result.toolCalls).toBe(2);
-      expect(result.skipped).toBe(false);
-      expect(result.error).toBeUndefined();
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.turns).toBe(1);
+      expect(result.data.toolCalls).toBe(2);
+      expect(result.data.skipped).toBe(false);
     });
 
     it('stores correct turn data', () => {
@@ -118,8 +119,10 @@ describe('IngestionService', () => {
       ingestion.ingestSession('test-ingest');
 
       const result = ingestion.ingestSession('test-ingest');
-      expect(result.skipped).toBe(true);
-      expect(result.turns).toBe(0);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.skipped).toBe(true);
+      expect(result.data.turns).toBe(0);
     });
 
     it('re-ingests with force flag', () => {
@@ -128,9 +131,11 @@ describe('IngestionService', () => {
       ingestion.ingestSession('test-ingest');
 
       const result = ingestion.ingestSession('test-ingest', { force: true });
-      expect(result.skipped).toBe(false);
-      expect(result.turns).toBe(1);
-      expect(result.toolCalls).toBe(2);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.skipped).toBe(false);
+      expect(result.data.turns).toBe(1);
+      expect(result.data.toolCalls).toBe(2);
 
       // Should not duplicate - old data deleted before reingest
       const turns = ingestionRepo.getSessionTurns('test-ingest');
@@ -139,14 +144,17 @@ describe('IngestionService', () => {
 
     it('returns error for nonexistent session', () => {
       const result = ingestion.ingestSession('nonexistent');
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
       expect(result.error).toBe('Session not found');
-      expect(result.turns).toBe(0);
     });
 
     it('returns error for session with no transcript path', () => {
       sessionRepo.insertSession({ session_id: 'no-path', workspace: 'ws', cwd: '/', transcript_path: null, started_at: 1000 });
 
       const result = ingestion.ingestSession('no-path');
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
       expect(result.error).toBe('No transcript path');
     });
 
@@ -154,6 +162,8 @@ describe('IngestionService', () => {
       sessionRepo.insertSession({ session_id: 'missing', workspace: 'ws', cwd: '/', transcript_path: '/tmp/does-not-exist.jsonl', started_at: 1000 });
 
       const result = ingestion.ingestSession('missing');
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
       expect(result.error).toContain('Transcript file not found');
     });
   });

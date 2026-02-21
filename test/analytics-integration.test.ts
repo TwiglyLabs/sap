@@ -71,8 +71,10 @@ describe('analytics integration', () => {
 
     // 3. Ingest
     const ingestResult = sap.ingestion.ingestSession('int-1');
-    expect(ingestResult.turns).toBe(1);
-    expect(ingestResult.toolCalls).toBe(2);
+    expect(ingestResult.ok).toBe(true);
+    if (!ingestResult.ok) return;
+    expect(ingestResult.data.turns).toBe(1);
+    expect(ingestResult.data.toolCalls).toBe(2);
 
     // 4. Raw query works
     const queryResult = sap.analytics.executeQuery('SELECT count(*) as n FROM turns');

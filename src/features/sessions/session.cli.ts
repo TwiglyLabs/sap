@@ -74,12 +74,13 @@ export function latestCommand(service: SessionService, options: LatestOptions): 
   const session = service.latest(options.workspace);
 
   if (options.json) {
-    console.log(JSON.stringify(session, null, 2));
+    console.log(JSON.stringify({ session }, null, 2));
     return;
   }
 
   if (!session) {
     console.log(`No sessions found for ${options.workspace}.`);
+    process.exitCode = 1;
     return;
   }
 

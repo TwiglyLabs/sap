@@ -12,7 +12,8 @@ const VALID_EVENTS: EventType[] = [
 export function recordCli(service: RecordingService, eventType: string): void {
   if (!VALID_EVENTS.includes(eventType as EventType)) {
     process.stderr.write(`Unknown event type: ${eventType}\n`);
-    process.exit(2);
+    process.exitCode = 1;
+    return;
   }
 
   let stdin: string;
@@ -20,7 +21,8 @@ export function recordCli(service: RecordingService, eventType: string): void {
     stdin = readFileSync(0, 'utf-8');
   } catch {
     process.stderr.write('Failed to read stdin\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   try {
@@ -28,6 +30,7 @@ export function recordCli(service: RecordingService, eventType: string): void {
     service.recordEvent(eventType as EventType, payload);
   } catch (err) {
     process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 }

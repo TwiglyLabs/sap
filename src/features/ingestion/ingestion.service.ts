@@ -3,26 +3,28 @@ import { parseTranscriptLine, groupIntoTurns } from './transcript.ts';
 import { extractToolDetail } from './tool-detail.ts';
 import type { IngestionRepository } from './ingestion.repository.ts';
 import type { IngestResult, IngestOptions, BatchResult, BatchOptions } from './ingestion.types.ts';
+import type { Result } from '../../core/types.ts';
+import { ok, err } from '../../core/utils.ts';
 
 export class IngestionService {
   constructor(private repo: IngestionRepository) {}
 
-  ingestSession(sessionId: string, options: IngestOptions = {}): IngestResult {
+  ingestSession(sessionId: string, options: IngestOptions = {}): Result<IngestResult> {
     const session = this.repo.getSession(sessionId);
     if (!session) {
-      return { sessionId, turns: 0, toolCalls: 0, skipped: false, error: 'Session not found' };
+      return err('Session not found');
     }
 
     if (!session.transcript_path) {
-      return { sessionId, turns: 0, toolCalls: 0, skipped: false, error: 'No transcript path' };
+      return err('No transcript path');
     }
 
     if (session.ingested_at && !options.force) {
-      return { sessionId, turns: 0, toolCalls: 0, skipped: true };
+      return ok({ sessionId, turns: 0, toolCalls: 0, skipped: true });
     }
 
     if (!existsSync(session.transcript_path)) {
-      return { sessionId, turns: 0, toolCalls: 0, skipped: false, error: `Transcript file not found: ${session.transcript_path}` };
+      return err(`Transcript file not found: ${session.transcript_path}`);
     }
 
     const raw = readFileSync(session.transcript_path, 'utf-8');
@@ -83,7 +85,7 @@ export class IngestionService {
       this.repo.markSessionIngested(sessionId);
     });
 
-    return { sessionId, turns: turnData.length, toolCalls: totalToolCalls, skipped: false };
+    return ok({ sessionId, turns: turnData.length, toolCalls: totalToolCalls, skipped: false });
   }
 
   ingestBatch(options: BatchOptions): BatchResult {
@@ -100,13 +102,15 @@ export class IngestionService {
 
     for (const session of sessions) {
       const r = this.ingestSession(session.session_id, { force: options.force });
-      result.results.push(r);
-      if (r.skipped) {
-        result.skipped++;
-      } else if (r.error) {
-        result.errors.push({ session_id: session.session_id, error: r.error });
+      if (r.ok) {
+        result.results.push(r.data);
+        if (r.data.skipped) {
+          result.skipped++;
+        } else {
+          result.ingested++;
+        }
       } else {
-        result.ingested++;
+        result.errors.push({ session_id: session.session_id, error: r.error });
       }
     }
 

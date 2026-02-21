@@ -9,6 +9,26 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./sessions": {
+      "import": "./dist/features/sessions/index.js",
+      "types": "./dist/features/sessions/index.d.ts"
+    },
+    "./recording": {
+      "import": "./dist/features/recording/index.js",
+      "types": "./dist/features/recording/index.d.ts"
+    },
+    "./analytics": {
+      "import": "./dist/features/analytics/index.js",
+      "types": "./dist/features/analytics/index.d.ts"
+    },
+    "./ingestion": {
+      "import": "./dist/features/ingestion/index.js",
+      "types": "./dist/features/ingestion/index.d.ts"
+    },
+    "./workspace": {
+      "import": "./dist/features/workspace/index.js",
+      "types": "./dist/features/workspace/index.d.ts"
     }
   },
   "bin": {

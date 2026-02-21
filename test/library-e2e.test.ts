@@ -27,31 +27,54 @@ describe('library e2e (built artifact)', () => {
     }
   });
 
-  it('dist/index.js exports all expected functions and classes', () => {
+  it('dist/index.js exports only the intended public surface', () => {
     // Factory
     expect(typeof lib.createSap).toBe('function');
 
-    // Core
-    expect(typeof lib.openDb).toBe('function');
-    expect(typeof lib.DEFAULT_DB_PATH).toBe('string');
-    expect(typeof lib.parseDuration).toBe('function');
-    expect(typeof lib.STALE_THRESHOLD_MS).toBe('number');
+    // Result helpers
+    expect(typeof lib.ok).toBe('function');
+    expect(typeof lib.err).toBe('function');
 
-    // Services
-    expect(typeof lib.SessionService).toBe('function');
-    expect(typeof lib.RecordingService).toBe('function');
-    expect(typeof lib.WorkspaceService).toBe('function');
-    expect(typeof lib.IngestionService).toBe('function');
-    expect(typeof lib.AnalyticsService).toBe('function');
+    // Should NOT export internal utilities or service classes
+    expect(lib.openDb).toBeUndefined();
+    expect(lib.DEFAULT_DB_PATH).toBeUndefined();
+    expect(lib.parseDuration).toBeUndefined();
+    expect(lib.STALE_THRESHOLD_MS).toBeUndefined();
+    expect(lib.SessionService).toBeUndefined();
+    expect(lib.RecordingService).toBeUndefined();
+    expect(lib.WorkspaceService).toBeUndefined();
+    expect(lib.IngestionService).toBeUndefined();
+    expect(lib.AnalyticsService).toBeUndefined();
+    expect(lib.parsePayload).toBeUndefined();
+    expect(lib.resolveWorkspaceFromGit).toBeUndefined();
+    expect(lib.buildWhereClause).toBeUndefined();
+    expect(lib.parseAnalyticsOptions).toBeUndefined();
+    expect(lib.parseTranscriptLine).toBeUndefined();
+    expect(lib.groupIntoTurns).toBeUndefined();
+    expect(lib.extractToolDetail).toBeUndefined();
+  });
 
-    // Utilities
-    expect(typeof lib.parsePayload).toBe('function');
-    expect(typeof lib.resolveWorkspaceFromGit).toBe('function');
-    expect(typeof lib.buildWhereClause).toBe('function');
-    expect(typeof lib.parseAnalyticsOptions).toBe('function');
-    expect(typeof lib.parseTranscriptLine).toBe('function');
-    expect(typeof lib.groupIntoTurns).toBe('function');
-    expect(typeof lib.extractToolDetail).toBe('function');
+  it('subpath exports resolve correctly', async () => {
+    const sessionsPath = join(__dirname, '..', 'dist', 'features', 'sessions', 'index.js');
+    const recordingPath = join(__dirname, '..', 'dist', 'features', 'recording', 'index.js');
+    const analyticsPath = join(__dirname, '..', 'dist', 'features', 'analytics', 'index.js');
+    const ingestionPath = join(__dirname, '..', 'dist', 'features', 'ingestion', 'index.js');
+    const workspacePath = join(__dirname, '..', 'dist', 'features', 'workspace', 'index.js');
+
+    const sessions = await import(sessionsPath);
+    expect(typeof sessions.SessionService).toBe('function');
+
+    const recording = await import(recordingPath);
+    expect(typeof recording.RecordingService).toBe('function');
+
+    const analytics = await import(analyticsPath);
+    expect(typeof analytics.AnalyticsService).toBe('function');
+
+    const ingestion = await import(ingestionPath);
+    expect(typeof ingestion.IngestionService).toBe('function');
+
+    const workspace = await import(workspacePath);
+    expect(typeof workspace.WorkspaceService).toBe('function');
   });
 
   it('full workflow through built artifact', () => {
@@ -120,9 +143,9 @@ describe('library e2e (built artifact)', () => {
     expect(existsSync(dtsPath)).toBe(true);
 
     const content = readFileSync(dtsPath, 'utf-8');
-    expect(content).toContain('openDb');
-    expect(content).toContain('Session');
     expect(content).toContain('createSap');
+    expect(content).toContain('Result');
+    expect(content).toContain('Session');
   });
 
   it('dist/index.js.map exists (sourcemap)', () => {
@@ -153,8 +176,10 @@ describe('library e2e (built artifact)', () => {
 
       // Ingest
       const ingestResult = sap.ingestion.ingestSession('e2e-ingest');
-      expect(ingestResult.turns).toBe(1);
-      expect(ingestResult.toolCalls).toBe(2);
+      expect(ingestResult.ok).toBe(true);
+      if (!ingestResult.ok) return;
+      expect(ingestResult.data.turns).toBe(1);
+      expect(ingestResult.data.toolCalls).toBe(2);
 
       // Analytics
       const summary = sap.analytics.summary({});

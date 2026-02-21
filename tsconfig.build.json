@@ -9,6 +9,13 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src/index.ts"],
+  "include": [
+    "src/index.ts",
+    "src/features/sessions/index.ts",
+    "src/features/recording/index.ts",
+    "src/features/analytics/index.ts",
+    "src/features/ingestion/index.ts",
+    "src/features/workspace/index.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }
