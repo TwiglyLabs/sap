@@ -12,7 +12,7 @@ describe('integration: full session lifecycle', () => {
     sap.close();
   });
 
-  it('tracks a complete session lifecycle', () => {
+  it('tracks a complete session lifecycle', async () => {
     const base = {
       session_id: 'int-sess-1',
       cwd: '/tmp',
@@ -22,14 +22,14 @@ describe('integration: full session lifecycle', () => {
     };
 
     // 1. Session starts
-    sap.recording.recordEvent('session-start', { ...base, source: 'startup' as const });
+    await sap.recording.recordEvent('session-start', { ...base, source: 'startup' as const });
 
     let status = sap.sessions.status();
     expect(status.sessions).toHaveLength(1);
     expect(status.sessions[0].state).toBe('active');
 
     // 2. Tool use
-    sap.recording.recordEvent('tool-use', {
+    await sap.recording.recordEvent('tool-use', {
       ...base,
       hook_event_name: 'PostToolUse',
       tool_name: 'Edit',
@@ -41,31 +41,31 @@ describe('integration: full session lifecycle', () => {
     expect(status.sessions[0].last_tool_detail).toBe('app.ts');
 
     // 3. Turn complete — Claude done responding
-    sap.recording.recordEvent('turn-complete', { ...base, hook_event_name: 'Stop' });
+    await sap.recording.recordEvent('turn-complete', { ...base, hook_event_name: 'Stop' });
 
     status = sap.sessions.status();
     expect(status.sessions[0].state).toBe('idle');
 
     // 4. User submits another prompt
-    sap.recording.recordEvent('user-prompt', { ...base, hook_event_name: 'UserPromptSubmit', prompt: 'fix the bug' });
+    await sap.recording.recordEvent('user-prompt', { ...base, hook_event_name: 'UserPromptSubmit', prompt: 'fix the bug' });
 
     status = sap.sessions.status();
     expect(status.sessions[0].state).toBe('active');
 
     // 5. Permission prompt — attention needed
-    sap.recording.recordEvent('attention-permission', { ...base, hook_event_name: 'Notification', notification_type: 'permission_prompt' });
+    await sap.recording.recordEvent('attention-permission', { ...base, hook_event_name: 'Notification', notification_type: 'permission_prompt' });
 
     status = sap.sessions.status();
     expect(status.sessions[0].state).toBe('attention');
 
     // 6. User responds — clears attention
-    sap.recording.recordEvent('user-prompt', { ...base, hook_event_name: 'UserPromptSubmit' });
+    await sap.recording.recordEvent('user-prompt', { ...base, hook_event_name: 'UserPromptSubmit' });
 
     status = sap.sessions.status();
     expect(status.sessions[0].state).toBe('active');
 
     // 7. Session ends
-    sap.recording.recordEvent('session-end', { ...base, hook_event_name: 'SessionEnd', reason: 'logout' });
+    await sap.recording.recordEvent('session-end', { ...base, hook_event_name: 'SessionEnd', reason: 'logout' });
 
     status = sap.sessions.status();
     expect(status.sessions).toHaveLength(0); // stopped sessions excluded
@@ -81,7 +81,7 @@ describe('integration: full session lifecycle', () => {
     expect(history[0].session_id).toBe('int-sess-1');
   });
 
-  it('handles session resume correctly', () => {
+  it('handles session resume correctly', async () => {
     const base = {
       session_id: 'resume-sess',
       cwd: '/tmp',
@@ -91,11 +91,11 @@ describe('integration: full session lifecycle', () => {
     };
 
     // Start, then stop
-    sap.recording.recordEvent('session-start', { ...base, source: 'startup' as const });
-    sap.recording.recordEvent('session-end', { ...base, hook_event_name: 'SessionEnd' });
+    await sap.recording.recordEvent('session-start', { ...base, source: 'startup' as const });
+    await sap.recording.recordEvent('session-end', { ...base, hook_event_name: 'SessionEnd' });
 
     // Resume the same session
-    sap.recording.recordEvent('session-start', { ...base, source: 'resume' as const });
+    await sap.recording.recordEvent('session-start', { ...base, source: 'resume' as const });
 
     const status = sap.sessions.status();
     expect(status.sessions).toHaveLength(1);
@@ -103,7 +103,7 @@ describe('integration: full session lifecycle', () => {
     expect(status.sessions[0].session_id).toBe('resume-sess');
   });
 
-  it('handles multiple concurrent sessions', () => {
+  it('handles multiple concurrent sessions', async () => {
     const mkPayload = (id: string, cwd: string) => ({
       session_id: id,
       cwd,
@@ -112,8 +112,8 @@ describe('integration: full session lifecycle', () => {
       hook_event_name: 'SessionStart',
     });
 
-    sap.recording.recordEvent('session-start', { ...mkPayload('s1', '/tmp/repo-a'), source: 'startup' as const });
-    sap.recording.recordEvent('session-start', { ...mkPayload('s2', '/tmp/repo-b'), source: 'startup' as const });
+    await sap.recording.recordEvent('session-start', { ...mkPayload('s1', '/tmp/repo-a'), source: 'startup' as const });
+    await sap.recording.recordEvent('session-start', { ...mkPayload('s2', '/tmp/repo-b'), source: 'startup' as const });
 
     const status = sap.sessions.status();
     expect(status.sessions).toHaveLength(2);

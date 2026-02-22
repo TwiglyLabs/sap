@@ -48,17 +48,17 @@ describe('library analytics parity', () => {
     ].map(l => JSON.stringify(l)).join('\n');
   }
 
-  it('summaryQuery returns correct structure', () => {
+  it('summaryQuery returns correct structure', async () => {
     writeFileSync(tmpTranscript, makeTranscript());
     const db = openDb(':memory:');
     const { recording, ingestion, analytics } = makeServices(db);
 
-    recording.recordEvent('session-start', {
+    await recording.recordEvent('session-start', {
       session_id: 'analytics-test', cwd: '/tmp/repo', transcript_path: tmpTranscript,
       permission_mode: 'default', hook_event_name: 'session-start', source: 'startup',
     });
 
-    const result = ingestion.ingestSession('analytics-test');
+    const result = await ingestion.ingestSession('analytics-test');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.turns).toBe(1);
@@ -75,16 +75,16 @@ describe('library analytics parity', () => {
     db.close();
   });
 
-  it('toolsQuery returns per-tool breakdown', () => {
+  it('toolsQuery returns per-tool breakdown', async () => {
     writeFileSync(tmpTranscript, makeTranscript());
     const db = openDb(':memory:');
     const { recording, ingestion, analytics } = makeServices(db);
 
-    recording.recordEvent('session-start', {
+    await recording.recordEvent('session-start', {
       session_id: 'analytics-test', cwd: '/tmp/repo', transcript_path: tmpTranscript,
       permission_mode: 'default', hook_event_name: 'session-start', source: 'startup',
     });
-    ingestion.ingestSession('analytics-test');
+    await ingestion.ingestSession('analytics-test');
 
     const tools = analytics.tools({});
     expect(tools.tools.length).toBe(2);
@@ -97,16 +97,16 @@ describe('library analytics parity', () => {
     db.close();
   });
 
-  it('sessionsAnalyticsQuery returns per-session metrics', () => {
+  it('sessionsAnalyticsQuery returns per-session metrics', async () => {
     writeFileSync(tmpTranscript, makeTranscript());
     const db = openDb(':memory:');
     const { recording, ingestion, analytics } = makeServices(db);
 
-    recording.recordEvent('session-start', {
+    await recording.recordEvent('session-start', {
       session_id: 'analytics-test', cwd: '/tmp/repo', transcript_path: tmpTranscript,
       permission_mode: 'default', hook_event_name: 'session-start', source: 'startup',
     });
-    ingestion.ingestSession('analytics-test');
+    await ingestion.ingestSession('analytics-test');
 
     const result = analytics.sessionsAnalytics({}, 10);
     expect(result.sessions.length).toBe(1);
@@ -148,7 +148,7 @@ describe('library analytics parity', () => {
     expect(withBoth.params.length).toBe(2);
   });
 
-  it('summaryQuery with workspace filter', () => {
+  it('summaryQuery with workspace filter', async () => {
     const db = openDb(':memory:');
     const { sessionRepo, ingestion, analytics } = makeServices(db);
 
@@ -170,8 +170,8 @@ describe('library analytics parity', () => {
     sessionRepo.insertSession({ session_id: 'ws-a-1', workspace: 'repo-a:main', cwd: '/tmp/a', transcript_path: tmpTranscript2, started_at: Date.now() });
     sessionRepo.insertSession({ session_id: 'ws-b-1', workspace: 'repo-b:dev', cwd: '/tmp/b', transcript_path: tmpTranscript3, started_at: Date.now() });
 
-    ingestion.ingestSession('ws-a-1');
-    ingestion.ingestSession('ws-b-1');
+    await ingestion.ingestSession('ws-a-1');
+    await ingestion.ingestSession('ws-b-1');
 
     const summaryA = analytics.summary({ workspace: 'repo-a:main' });
     expect(summaryA.sessions.total).toBe(1);
@@ -191,7 +191,7 @@ describe('library analytics parity', () => {
     db.close();
   });
 
-  it('toolsQuery with workspace filter', () => {
+  it('toolsQuery with workspace filter', async () => {
     const db = openDb(':memory:');
     const { sessionRepo, ingestion, analytics } = makeServices(db);
 
@@ -213,8 +213,8 @@ describe('library analytics parity', () => {
     sessionRepo.insertSession({ session_id: 'ws-a-2', workspace: 'repo-a:main', cwd: '/tmp/a', transcript_path: tmpTranscript2, started_at: Date.now() });
     sessionRepo.insertSession({ session_id: 'ws-b-2', workspace: 'repo-b:dev', cwd: '/tmp/b', transcript_path: tmpTranscript3, started_at: Date.now() });
 
-    ingestion.ingestSession('ws-a-2');
-    ingestion.ingestSession('ws-b-2');
+    await ingestion.ingestSession('ws-a-2');
+    await ingestion.ingestSession('ws-b-2');
 
     const toolsA = analytics.tools({ workspace: 'repo-a:main' });
     expect(toolsA.tools.length).toBe(1);
@@ -230,7 +230,7 @@ describe('library analytics parity', () => {
     db.close();
   });
 
-  it('patternsQuery with anti-patterns', () => {
+  it('patternsQuery with anti-patterns', async () => {
     const db = openDb(':memory:');
     const { sessionRepo, ingestion, analytics } = makeServices(db);
 
@@ -244,7 +244,7 @@ describe('library analytics parity', () => {
 
     writeFileSync(tmpTranscript, transcript);
     sessionRepo.insertSession({ session_id: 'anti-pattern-test', workspace: 'test:main', cwd: '/tmp/test', transcript_path: tmpTranscript, started_at: Date.now() });
-    ingestion.ingestSession('anti-pattern-test');
+    await ingestion.ingestSession('anti-pattern-test');
 
     const patterns = analytics.patterns({});
     expect(patterns.anti_patterns.length).toBeGreaterThan(0);
@@ -261,7 +261,7 @@ describe('library analytics parity', () => {
     db.close();
   });
 
-  it('patternsQuery with outlier sessions', () => {
+  it('patternsQuery with outlier sessions', async () => {
     const db = openDb(':memory:');
     const { sessionRepo, ingestion, analytics } = makeServices(db);
 
@@ -285,12 +285,12 @@ describe('library analytics parity', () => {
       normalPaths.push(p);
       writeFileSync(p, makeNormalTranscript(`normal-${i}`));
       sessionRepo.insertSession({ session_id: `normal-${i}`, workspace: 'test:main', cwd: '/tmp/test', transcript_path: p, started_at: Date.now() });
-      ingestion.ingestSession(`normal-${i}`);
+      await ingestion.ingestSession(`normal-${i}`);
     }
 
     writeFileSync(tmpTranscript4, outlierTranscript);
     sessionRepo.insertSession({ session_id: 'outlier-1', workspace: 'test:main', cwd: '/tmp/test', transcript_path: tmpTranscript4, started_at: Date.now() });
-    ingestion.ingestSession('outlier-1');
+    await ingestion.ingestSession('outlier-1');
 
     const patterns = analytics.patterns({});
     expect(patterns.outlier_sessions.length).toBeGreaterThan(0);

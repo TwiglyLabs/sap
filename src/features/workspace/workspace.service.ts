@@ -1,6 +1,9 @@
-import { execFileSync } from 'child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { basename, resolve, isAbsolute } from 'path';
 import type { WorkspaceRepository } from './workspace.repository.ts';
+
+const execFileAsync = promisify(execFile);
 
 interface WorkspaceResolution {
   repo_name: string;
@@ -8,27 +11,27 @@ interface WorkspaceResolution {
   workspace: string;
 }
 
-function execGit(cwd: string, args: string[]): string | null {
+async function execGit(cwd: string, args: string[]): Promise<string | null> {
   try {
-    return execFileSync('git', ['-C', cwd, ...args], {
+    const { stdout } = await execFileAsync('git', ['-C', cwd, ...args], {
       encoding: 'utf-8',
       timeout: 5000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
+    });
+    return stdout.trim();
   } catch {
     return null;
   }
 }
 
-export function resolveWorkspaceFromGit(cwd: string): WorkspaceResolution | null {
-  const commonDir = execGit(cwd, ['rev-parse', '--git-common-dir']);
+export async function resolveWorkspaceFromGit(cwd: string): Promise<WorkspaceResolution | null> {
+  const commonDir = await execGit(cwd, ['rev-parse', '--git-common-dir']);
   if (commonDir === null) return null;
 
   const absCommonDir = isAbsolute(commonDir) ? commonDir : resolve(cwd, commonDir);
   const repoRoot = resolve(absCommonDir, '..');
   const repoName = basename(repoRoot);
 
-  const branchRaw = execGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
+  const branchRaw = await execGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
   const branch = branchRaw === 'HEAD' ? 'detached' : (branchRaw ?? 'unknown');
 
   return {
@@ -43,13 +46,13 @@ export class WorkspaceService {
   constructor(private repo: WorkspaceRepository) {}
 
   /** Resolve cwd to a workspace string. Uses cache unless forceResolve is true. Falls back to "dirname:local". */
-  resolveWorkspace(cwd: string, forceResolve: boolean): string {
+  async resolveWorkspace(cwd: string, forceResolve: boolean): Promise<string> {
     if (!forceResolve) {
       const cached = this.repo.getCachedWorkspace(cwd);
       if (cached) return cached.workspace;
     }
 
-    const resolved = resolveWorkspaceFromGit(cwd);
+    const resolved = await resolveWorkspaceFromGit(cwd);
 
     if (resolved) {
       this.repo.upsertWorkspace({

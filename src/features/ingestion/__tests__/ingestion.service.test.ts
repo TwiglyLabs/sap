@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeFileSync, unlinkSync } from 'fs';
+import { writeFileSync, unlinkSync, truncateSync } from 'fs';
 import { openDb } from '../../../core/storage.ts';
 import { SessionRepositorySqlite } from '../../sessions/sqlite/session.repository.sqlite.ts';
 import { IngestionRepositorySqlite } from '../sqlite/ingestion.repository.sqlite.ts';
@@ -45,11 +45,11 @@ describe('IngestionService', () => {
   });
 
   describe('ingestSession', () => {
-    it('ingests a transcript with turns and tool calls', () => {
+    it('ingests a transcript with turns and tool calls', async () => {
       writeFileSync(TRANSCRIPT, makeTranscript());
       sessionRepo.insertSession({ session_id: 'test-ingest', workspace: 'ws', cwd: '/', transcript_path: TRANSCRIPT, started_at: 1000 });
 
-      const result = ingestion.ingestSession('test-ingest');
+      const result = await ingestion.ingestSession('test-ingest');
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.data.turns).toBe(1);
@@ -57,10 +57,10 @@ describe('IngestionService', () => {
       expect(result.data.skipped).toBe(false);
     });
 
-    it('stores correct turn data', () => {
+    it('stores correct turn data', async () => {
       writeFileSync(TRANSCRIPT, makeTranscript());
       sessionRepo.insertSession({ session_id: 'test-ingest', workspace: 'ws', cwd: '/', transcript_path: TRANSCRIPT, started_at: 1000 });
-      ingestion.ingestSession('test-ingest');
+      await ingestion.ingestSession('test-ingest');
 
       const turns = ingestionRepo.getSessionTurns('test-ingest');
       expect(turns).toHaveLength(1);
@@ -74,10 +74,10 @@ describe('IngestionService', () => {
       expect(turns[0].tool_call_count).toBe(2);
     });
 
-    it('stores correct tool call data with input summary', () => {
+    it('stores correct tool call data with input summary', async () => {
       writeFileSync(TRANSCRIPT, makeTranscript());
       sessionRepo.insertSession({ session_id: 'test-ingest', workspace: 'ws', cwd: '/', transcript_path: TRANSCRIPT, started_at: 1000 });
-      ingestion.ingestSession('test-ingest');
+      await ingestion.ingestSession('test-ingest');
 
       const turns = ingestionRepo.getSessionTurns('test-ingest');
       const toolCalls = ingestionRepo.getTurnToolCalls(turns[0].id);
@@ -93,10 +93,10 @@ describe('IngestionService', () => {
       expect(editCall!.success).toBe(1);
     });
 
-    it('detects tool call errors', () => {
+    it('detects tool call errors', async () => {
       writeFileSync(TRANSCRIPT, makeErrorTranscript());
       sessionRepo.insertSession({ session_id: 'test-errors', workspace: 'ws', cwd: '/', transcript_path: TRANSCRIPT, started_at: 1000 });
-      ingestion.ingestSession('test-errors');
+      await ingestion.ingestSession('test-errors');
 
       const turns = ingestionRepo.getSessionTurns('test-errors');
       const toolCalls = ingestionRepo.getTurnToolCalls(turns[0].id);
@@ -104,33 +104,33 @@ describe('IngestionService', () => {
       expect(toolCalls[0].error_message).toContain('Edit failed');
     });
 
-    it('marks session as ingested', () => {
+    it('marks session as ingested', async () => {
       writeFileSync(TRANSCRIPT, makeTranscript());
       sessionRepo.insertSession({ session_id: 'test-ingest', workspace: 'ws', cwd: '/', transcript_path: TRANSCRIPT, started_at: 1000 });
-      ingestion.ingestSession('test-ingest');
+      await ingestion.ingestSession('test-ingest');
 
       const session = sessionRepo.getSession('test-ingest');
       expect(session!.ingested_at).not.toBeNull();
     });
 
-    it('skips already-ingested sessions without force', () => {
+    it('skips already-ingested sessions without force', async () => {
       writeFileSync(TRANSCRIPT, makeTranscript());
       sessionRepo.insertSession({ session_id: 'test-ingest', workspace: 'ws', cwd: '/', transcript_path: TRANSCRIPT, started_at: 1000 });
-      ingestion.ingestSession('test-ingest');
+      await ingestion.ingestSession('test-ingest');
 
-      const result = ingestion.ingestSession('test-ingest');
+      const result = await ingestion.ingestSession('test-ingest');
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.data.skipped).toBe(true);
       expect(result.data.turns).toBe(0);
     });
 
-    it('re-ingests with force flag', () => {
+    it('re-ingests with force flag', async () => {
       writeFileSync(TRANSCRIPT, makeTranscript());
       sessionRepo.insertSession({ session_id: 'test-ingest', workspace: 'ws', cwd: '/', transcript_path: TRANSCRIPT, started_at: 1000 });
-      ingestion.ingestSession('test-ingest');
+      await ingestion.ingestSession('test-ingest');
 
-      const result = ingestion.ingestSession('test-ingest', { force: true });
+      const result = await ingestion.ingestSession('test-ingest', { force: true });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.data.skipped).toBe(false);
@@ -142,34 +142,51 @@ describe('IngestionService', () => {
       expect(turns).toHaveLength(1);
     });
 
-    it('returns error for nonexistent session', () => {
-      const result = ingestion.ingestSession('nonexistent');
+    it('returns error for nonexistent session', async () => {
+      const result = await ingestion.ingestSession('nonexistent');
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error).toBe('Session not found');
     });
 
-    it('returns error for session with no transcript path', () => {
+    it('returns error for session with no transcript path', async () => {
       sessionRepo.insertSession({ session_id: 'no-path', workspace: 'ws', cwd: '/', transcript_path: null, started_at: 1000 });
 
-      const result = ingestion.ingestSession('no-path');
+      const result = await ingestion.ingestSession('no-path');
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error).toBe('No transcript path');
     });
 
-    it('returns error for missing transcript file', () => {
+    it('returns error for missing transcript file', async () => {
       sessionRepo.insertSession({ session_id: 'missing', workspace: 'ws', cwd: '/', transcript_path: '/tmp/does-not-exist.jsonl', started_at: 1000 });
 
-      const result = ingestion.ingestSession('missing');
+      const result = await ingestion.ingestSession('missing');
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error).toContain('Transcript file not found');
     });
+
+    it('rejects transcripts exceeding 50MB', async () => {
+      const largePath = `/tmp/sap-ingest-large-${process.pid}.jsonl`;
+      try {
+        writeFileSync(largePath, '');
+        truncateSync(largePath, 51 * 1024 * 1024);
+        sessionRepo.insertSession({ session_id: 'large', workspace: 'ws', cwd: '/', transcript_path: largePath, started_at: 1000 });
+
+        const result = await ingestion.ingestSession('large');
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.error).toContain('Transcript too large');
+        expect(result.error).toContain('50MB');
+      } finally {
+        try { unlinkSync(largePath); } catch {}
+      }
+    });
   });
 
   describe('ingestBatch', () => {
-    it('ingests all uninigested sessions', () => {
+    it('ingests all uninigested sessions', async () => {
       writeFileSync(TRANSCRIPT, makeTranscript('batch-1'));
       const t2 = TRANSCRIPT + '.2';
       writeFileSync(t2, makeTranscript('batch-2'));
@@ -177,7 +194,7 @@ describe('IngestionService', () => {
       sessionRepo.insertSession({ session_id: 'batch-1', workspace: 'ws', cwd: '/', transcript_path: TRANSCRIPT, started_at: 1000 });
       sessionRepo.insertSession({ session_id: 'batch-2', workspace: 'ws', cwd: '/', transcript_path: t2, started_at: 2000 });
 
-      const result = ingestion.ingestBatch({});
+      const result = await ingestion.ingestBatch({});
       expect(result.ingested).toBe(2);
       expect(result.skipped).toBe(0);
       expect(result.errors).toHaveLength(0);
@@ -185,17 +202,17 @@ describe('IngestionService', () => {
       try { unlinkSync(t2); } catch {}
     });
 
-    it('skips already-ingested sessions in batch', () => {
+    it('skips already-ingested sessions in batch', async () => {
       writeFileSync(TRANSCRIPT, makeTranscript('batch-skip'));
       sessionRepo.insertSession({ session_id: 'batch-skip', workspace: 'ws', cwd: '/', transcript_path: TRANSCRIPT, started_at: 1000 });
-      ingestion.ingestSession('batch-skip');
+      await ingestion.ingestSession('batch-skip');
 
-      const result = ingestion.ingestBatch({});
+      const result = await ingestion.ingestBatch({});
       expect(result.ingested).toBe(0);
       expect(result.skipped).toBe(1);
     });
 
-    it('respects sinceMs filter', () => {
+    it('respects sinceMs filter', async () => {
       writeFileSync(TRANSCRIPT, makeTranscript('old-session'));
       const t2 = TRANSCRIPT + '.2';
       writeFileSync(t2, makeTranscript('new-session'));
@@ -204,28 +221,28 @@ describe('IngestionService', () => {
       sessionRepo.insertSession({ session_id: 'old-session', workspace: 'ws', cwd: '/', transcript_path: TRANSCRIPT, started_at: now - 10 * 86400 * 1000 });
       sessionRepo.insertSession({ session_id: 'new-session', workspace: 'ws', cwd: '/', transcript_path: t2, started_at: now });
 
-      const result = ingestion.ingestBatch({ sinceMs: 7 * 86400 * 1000 });
+      const result = await ingestion.ingestBatch({ sinceMs: 7 * 86400 * 1000 });
       expect(result.ingested).toBe(1);
       expect(result.results.find(r => r.sessionId === 'new-session')).toBeDefined();
 
       try { unlinkSync(t2); } catch {}
     });
 
-    it('ingests specific session by id', () => {
+    it('ingests specific session by id', async () => {
       writeFileSync(TRANSCRIPT, makeTranscript('specific'));
       sessionRepo.insertSession({ session_id: 'specific', workspace: 'ws', cwd: '/', transcript_path: TRANSCRIPT, started_at: 1000 });
       sessionRepo.insertSession({ session_id: 'other', workspace: 'ws', cwd: '/', transcript_path: null, started_at: 2000 });
 
-      const result = ingestion.ingestBatch({ sessionId: 'specific' });
+      const result = await ingestion.ingestBatch({ sessionId: 'specific' });
       expect(result.ingested).toBe(1);
       expect(result.results).toHaveLength(1);
       expect(result.results[0].sessionId).toBe('specific');
     });
 
-    it('reports errors in batch results', () => {
+    it('reports errors in batch results', async () => {
       sessionRepo.insertSession({ session_id: 'bad', workspace: 'ws', cwd: '/', transcript_path: '/nonexistent.jsonl', started_at: 1000 });
 
-      const result = ingestion.ingestBatch({ sessionId: 'bad' });
+      const result = await ingestion.ingestBatch({ sessionId: 'bad' });
       expect(result.ingested).toBe(0);
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].session_id).toBe('bad');

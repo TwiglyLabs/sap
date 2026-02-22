@@ -11,11 +11,11 @@ export class RecordingService {
   ) {}
 
   /** Process a hook event: create/update session state and store the event. */
-  recordEvent(eventType: EventType, data: HookPayload): void {
+  async recordEvent(eventType: EventType, data: HookPayload): Promise<void> {
     const now = Date.now();
 
     if (eventType === 'session-start') {
-      const workspace = this.workspaceService.resolveWorkspace(data.cwd, true);
+      const workspace = await this.workspaceService.resolveWorkspace(data.cwd, true);
       this.repo.transaction(() => {
         this.handleSessionStart(data, now, workspace);
       });

@@ -18,7 +18,7 @@ describe('analytics integration', () => {
     rmSync(tmpDir, { recursive: true });
   });
 
-  it('full lifecycle: record → ingest → query → analytics', () => {
+  it('full lifecycle: record → ingest → query → analytics', async () => {
     // 1. Record a session via hooks
     const transcriptPath = join(tmpDir, 'transcript.jsonl');
     const payload = {
@@ -30,12 +30,12 @@ describe('analytics integration', () => {
       source: 'startup' as const,
     };
 
-    sap.recording.recordEvent('session-start', payload);
-    sap.recording.recordEvent('user-prompt', { ...payload, prompt: 'fix the bug' });
-    sap.recording.recordEvent('tool-use', { ...payload, tool_name: 'Read', tool_input: { file_path: '/src/app.ts' } });
-    sap.recording.recordEvent('tool-use', { ...payload, tool_name: 'Edit', tool_input: { file_path: '/src/app.ts' } });
-    sap.recording.recordEvent('turn-complete', payload);
-    sap.recording.recordEvent('session-end', { ...payload, reason: 'done' });
+    await sap.recording.recordEvent('session-start', payload);
+    await sap.recording.recordEvent('user-prompt', { ...payload, prompt: 'fix the bug' });
+    await sap.recording.recordEvent('tool-use', { ...payload, tool_name: 'Read', tool_input: { file_path: '/src/app.ts' } });
+    await sap.recording.recordEvent('tool-use', { ...payload, tool_name: 'Edit', tool_input: { file_path: '/src/app.ts' } });
+    await sap.recording.recordEvent('turn-complete', payload);
+    await sap.recording.recordEvent('session-end', { ...payload, reason: 'done' });
 
     // 2. Write a transcript file
     const transcriptLines = [
@@ -70,7 +70,7 @@ describe('analytics integration', () => {
     writeFileSync(transcriptPath, transcriptLines.map(l => JSON.stringify(l)).join('\n'));
 
     // 3. Ingest
-    const ingestResult = sap.ingestion.ingestSession('int-1');
+    const ingestResult = await sap.ingestion.ingestSession('int-1');
     expect(ingestResult.ok).toBe(true);
     if (!ingestResult.ok) return;
     expect(ingestResult.data.turns).toBe(1);

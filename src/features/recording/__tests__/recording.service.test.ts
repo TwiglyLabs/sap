@@ -41,16 +41,16 @@ describe('RecordingService', () => {
   });
 
   describe('session-start events', () => {
-    it('creates a new session on startup', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+    it('creates a new session on startup', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
 
       const session = sessionRepo.getSession('test-session');
       expect(session).not.toBeNull();
       expect(session!.state).toBe('active');
     });
 
-    it('records session-start event', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+    it('records session-start event', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
 
       const events = sessionRepo.getSessionEvents('test-session');
       expect(events).toHaveLength(1);
@@ -58,39 +58,39 @@ describe('RecordingService', () => {
       expect(JSON.parse(events[0].data!).source).toBe('startup');
     });
 
-    it('upserts session on duplicate session_id with startup', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('session-end', basePayload({ reason: 'done' }));
+    it('upserts session on duplicate session_id with startup', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('session-end', basePayload({ reason: 'done' }));
 
       // Re-start same session_id
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
       const session = sessionRepo.getSession('test-session');
       expect(session!.state).toBe('active');
       expect(session!.ended_at).toBeNull();
     });
 
-    it('upserts session on duplicate session_id with clear', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('tool-use', basePayload({ tool_name: 'Read' }));
+    it('upserts session on duplicate session_id with clear', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('tool-use', basePayload({ tool_name: 'Read' }));
 
-      recording.recordEvent('session-start', basePayload({ source: 'clear' }));
+      await recording.recordEvent('session-start', basePayload({ source: 'clear' }));
       const session = sessionRepo.getSession('test-session');
       expect(session!.state).toBe('active');
       expect(session!.last_tool).toBeNull();
       expect(session!.last_tool_detail).toBeNull();
     });
 
-    it('resumes existing session on resume source', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('session-end', basePayload({ reason: 'logout' }));
+    it('resumes existing session on resume source', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('session-end', basePayload({ reason: 'logout' }));
 
-      recording.recordEvent('session-start', basePayload({ source: 'resume' }));
+      await recording.recordEvent('session-start', basePayload({ source: 'resume' }));
       const session = sessionRepo.getSession('test-session');
       expect(session!.state).toBe('active');
     });
 
-    it('creates new session if resume for unknown session_id', () => {
-      recording.recordEvent('session-start', basePayload({
+    it('creates new session if resume for unknown session_id', async () => {
+      await recording.recordEvent('session-start', basePayload({
         session_id: 'unknown-resume',
         source: 'resume',
       }));
@@ -100,21 +100,21 @@ describe('RecordingService', () => {
       expect(session!.state).toBe('active');
     });
 
-    it('updates last_event_at on compact without changing state', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('turn-complete', basePayload());
+    it('updates last_event_at on compact without changing state', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('turn-complete', basePayload());
 
       const before = sessionRepo.getSession('test-session');
       expect(before!.state).toBe('idle');
 
-      recording.recordEvent('session-start', basePayload({ source: 'compact' }));
+      await recording.recordEvent('session-start', basePayload({ source: 'compact' }));
       const after = sessionRepo.getSession('test-session');
       expect(after!.state).toBe('idle');
       expect(after!.last_event_at).toBeGreaterThanOrEqual(before!.last_event_at);
     });
 
-    it('ignores compact for unknown session', () => {
-      recording.recordEvent('session-start', basePayload({
+    it('ignores compact for unknown session', async () => {
+      await recording.recordEvent('session-start', basePayload({
         session_id: 'no-such-session',
         source: 'compact',
       }));
@@ -123,18 +123,18 @@ describe('RecordingService', () => {
   });
 
   describe('session-end events', () => {
-    it('stops the session and sets ended_at', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('session-end', basePayload({ reason: 'user_exit' }));
+    it('stops the session and sets ended_at', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('session-end', basePayload({ reason: 'user_exit' }));
 
       const session = sessionRepo.getSession('test-session');
       expect(session!.state).toBe('stopped');
       expect(session!.ended_at).not.toBeNull();
     });
 
-    it('records reason in event data', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('session-end', basePayload({ reason: 'user_exit' }));
+    it('records reason in event data', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('session-end', basePayload({ reason: 'user_exit' }));
 
       const events = sessionRepo.getSessionEvents('test-session');
       const endEvent = events.find(e => e.event_type === 'session-end');
@@ -142,18 +142,18 @@ describe('RecordingService', () => {
       expect(JSON.parse(endEvent!.data!).reason).toBe('user_exit');
     });
 
-    it('ignores session-end for unknown session', () => {
-      recording.recordEvent('session-end', basePayload({
+    it('ignores session-end for unknown session', async () => {
+      await recording.recordEvent('session-end', basePayload({
         session_id: 'nonexistent',
         reason: 'done',
       }));
       expect(sessionRepo.getSession('nonexistent')).toBeNull();
     });
 
-    it('ignores duplicate session-end', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('session-end', basePayload({ reason: 'first' }));
-      recording.recordEvent('session-end', basePayload({ reason: 'second' }));
+    it('ignores duplicate session-end', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('session-end', basePayload({ reason: 'first' }));
+      await recording.recordEvent('session-end', basePayload({ reason: 'second' }));
 
       const events = sessionRepo.getSessionEvents('test-session');
       const endEvents = events.filter(e => e.event_type === 'session-end');
@@ -162,70 +162,70 @@ describe('RecordingService', () => {
   });
 
   describe('turn-complete events', () => {
-    it('sets session to idle on turn-complete', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('turn-complete', basePayload());
+    it('sets session to idle on turn-complete', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('turn-complete', basePayload());
 
       const session = sessionRepo.getSession('test-session');
       expect(session!.state).toBe('idle');
     });
 
-    it('ignores turn-complete for unknown session_id', () => {
-      recording.recordEvent('turn-complete', basePayload({ session_id: 'ghost' }));
+    it('ignores turn-complete for unknown session_id', async () => {
+      await recording.recordEvent('turn-complete', basePayload({ session_id: 'ghost' }));
       expect(sessionRepo.getSession('ghost')).toBeNull();
     });
   });
 
   describe('attention events', () => {
-    it('sets session to attention on permission prompt', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('attention-permission', basePayload());
+    it('sets session to attention on permission prompt', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('attention-permission', basePayload());
 
       expect(sessionRepo.getSession('test-session')!.state).toBe('attention');
     });
 
-    it('sets session to attention on idle notification', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('attention-idle', basePayload());
+    it('sets session to attention on idle notification', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('attention-idle', basePayload());
 
       expect(sessionRepo.getSession('test-session')!.state).toBe('attention');
     });
 
-    it('ignores attention for unknown session_id', () => {
-      recording.recordEvent('attention-permission', basePayload({ session_id: 'ghost' }));
+    it('ignores attention for unknown session_id', async () => {
+      await recording.recordEvent('attention-permission', basePayload({ session_id: 'ghost' }));
       expect(sessionRepo.getSession('ghost')).toBeNull();
     });
   });
 
   describe('user-prompt events', () => {
-    it('clears attention state back to active', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('attention-permission', basePayload());
-      recording.recordEvent('user-prompt', basePayload({ prompt: 'fix it' }));
+    it('clears attention state back to active', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('attention-permission', basePayload());
+      await recording.recordEvent('user-prompt', basePayload({ prompt: 'fix it' }));
 
       expect(sessionRepo.getSession('test-session')!.state).toBe('active');
     });
 
-    it('clears idle state back to active', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('turn-complete', basePayload());
-      recording.recordEvent('user-prompt', basePayload({ prompt: 'next task' }));
+    it('clears idle state back to active', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('turn-complete', basePayload());
+      await recording.recordEvent('user-prompt', basePayload({ prompt: 'next task' }));
 
       expect(sessionRepo.getSession('test-session')!.state).toBe('active');
     });
 
-    it('stores prompt text in event data', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('user-prompt', basePayload({ prompt: 'fix the CSS' }));
+    it('stores prompt text in event data', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('user-prompt', basePayload({ prompt: 'fix the CSS' }));
 
       const events = sessionRepo.getSessionEvents('test-session');
       const promptEvent = events.find(e => e.event_type === 'user-prompt');
       expect(JSON.parse(promptEvent!.data!).prompt).toBe('fix the CSS');
     });
 
-    it('handles user-prompt without prompt text', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('user-prompt', basePayload());
+    it('handles user-prompt without prompt text', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('user-prompt', basePayload());
 
       const events = sessionRepo.getSessionEvents('test-session');
       const promptEvent = events.find(e => e.event_type === 'user-prompt');
@@ -234,9 +234,9 @@ describe('RecordingService', () => {
   });
 
   describe('tool-use events', () => {
-    it('sets state to active and records tool info', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('tool-use', basePayload({
+    it('sets state to active and records tool info', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('tool-use', basePayload({
         tool_name: 'Bash',
         tool_input: { command: 'npm test' },
       }));
@@ -247,9 +247,9 @@ describe('RecordingService', () => {
       expect(session!.last_tool_detail).toBe('npm test');
     });
 
-    it('records tool-use event with tool data', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('tool-use', basePayload({
+    it('records tool-use event with tool data', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('tool-use', basePayload({
         tool_name: 'Read',
         tool_input: { file_path: '/src/app.ts' },
       }));
@@ -261,16 +261,16 @@ describe('RecordingService', () => {
       expect(data.tool_detail).toBe('app.ts');
     });
 
-    it('handles missing tool_name gracefully', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('tool-use', basePayload());
+    it('handles missing tool_name gracefully', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('tool-use', basePayload());
 
       const session = sessionRepo.getSession('test-session');
       expect(session!.last_tool).toBe('unknown');
     });
 
-    it('ignores tool-use for unknown session_id', () => {
-      recording.recordEvent('tool-use', basePayload({
+    it('ignores tool-use for unknown session_id', async () => {
+      await recording.recordEvent('tool-use', basePayload({
         session_id: 'ghost',
         tool_name: 'Bash',
       }));
@@ -279,14 +279,14 @@ describe('RecordingService', () => {
   });
 
   describe('events after session-end', () => {
-    it('ignores events after session-end', () => {
-      recording.recordEvent('session-start', basePayload({ source: 'startup' }));
-      recording.recordEvent('session-end', basePayload({ reason: 'done' }));
+    it('ignores events after session-end', async () => {
+      await recording.recordEvent('session-start', basePayload({ source: 'startup' }));
+      await recording.recordEvent('session-end', basePayload({ reason: 'done' }));
 
       // These should all be silently ignored
-      recording.recordEvent('tool-use', basePayload({ tool_name: 'Read' }));
-      recording.recordEvent('turn-complete', basePayload());
-      recording.recordEvent('user-prompt', basePayload({ prompt: 'hello' }));
+      await recording.recordEvent('tool-use', basePayload({ tool_name: 'Read' }));
+      await recording.recordEvent('turn-complete', basePayload());
+      await recording.recordEvent('user-prompt', basePayload({ prompt: 'hello' }));
 
       const session = sessionRepo.getSession('test-session');
       expect(session!.state).toBe('stopped');

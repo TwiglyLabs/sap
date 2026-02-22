@@ -45,13 +45,13 @@ describe('library data access', () => {
   afterEach(cleanup);
 
   describe('turns + tool calls via ingestion', () => {
-    it('retrieves turns and tool calls after ingesting a transcript', () => {
+    it('retrieves turns and tool calls after ingesting a transcript', async () => {
       const db = openDb(':memory:');
       writeFileSync(TRANSCRIPT_PATH, makeTranscript('test-turns'));
       const { sessionRepo, ingestionRepo, ingestion } = makeServices(db);
 
       sessionRepo.insertSession({ session_id: 'test-turns', workspace: 'test:main', cwd: '/test', transcript_path: TRANSCRIPT_PATH, started_at: Date.now() });
-      ingestion.ingestSession('test-turns');
+      await ingestion.ingestSession('test-turns');
 
       const turns = ingestionRepo.getSessionTurns('test-turns');
       expect(turns).toHaveLength(1);
@@ -77,15 +77,15 @@ describe('library data access', () => {
   });
 
   describe('events via recording', () => {
-    it('retrieves events after recording via recordEvent', () => {
+    it('retrieves events after recording via recordEvent', async () => {
       const db = openDb(':memory:');
       const { sessionRepo, recording } = makeServices(db);
 
-      recording.recordEvent('session-start', {
+      await recording.recordEvent('session-start', {
         session_id: 'test-events', cwd: '/tmp/repo', transcript_path: '',
         permission_mode: 'default', hook_event_name: 'session-start', source: 'startup' as const,
       });
-      recording.recordEvent('tool-use', {
+      await recording.recordEvent('tool-use', {
         session_id: 'test-events', cwd: '/tmp/repo', transcript_path: '',
         permission_mode: 'default', hook_event_name: 'tool-use', tool_name: 'Bash', tool_input: { command: 'npm test' },
       });
@@ -172,7 +172,7 @@ describe('library data access', () => {
   });
 
   describe('batch ingestion', () => {
-    it('batch ingests multiple sessions', () => {
+    it('batch ingests multiple sessions', async () => {
       const db = openDb(':memory:');
       writeFileSync(TRANSCRIPT_PATH, makeTranscript('batch-1'));
       writeFileSync(TRANSCRIPT_PATH_2, makeTranscript('batch-2'));
@@ -181,7 +181,7 @@ describe('library data access', () => {
       sessionRepo.insertSession({ session_id: 'batch-1', workspace: 'ws', cwd: '/t', transcript_path: TRANSCRIPT_PATH, started_at: Date.now() });
       sessionRepo.insertSession({ session_id: 'batch-2', workspace: 'ws', cwd: '/t', transcript_path: TRANSCRIPT_PATH_2, started_at: Date.now() });
 
-      const result = ingestion.ingestBatch({});
+      const result = await ingestion.ingestBatch({});
       expect(result.ingested).toBe(2);
       expect(result.skipped).toBe(0);
       expect(result.errors).toHaveLength(0);
@@ -189,30 +189,30 @@ describe('library data access', () => {
       db.close();
     });
 
-    it('skips already ingested sessions', () => {
+    it('skips already ingested sessions', async () => {
       const db = openDb(':memory:');
       writeFileSync(TRANSCRIPT_PATH, makeTranscript('skip-test'));
       const { sessionRepo, ingestion } = makeServices(db);
 
       sessionRepo.insertSession({ session_id: 'skip-test', workspace: 'ws', cwd: '/t', transcript_path: TRANSCRIPT_PATH, started_at: Date.now() });
-      ingestion.ingestSession('skip-test');
+      await ingestion.ingestSession('skip-test');
 
-      const result = ingestion.ingestBatch({});
+      const result = await ingestion.ingestBatch({});
       expect(result.ingested).toBe(0);
       expect(result.skipped).toBe(1);
 
       db.close();
     });
 
-    it('reingests with force flag', () => {
+    it('reingests with force flag', async () => {
       const db = openDb(':memory:');
       writeFileSync(TRANSCRIPT_PATH, makeTranscript('force-test'));
       const { sessionRepo, ingestion } = makeServices(db);
 
       sessionRepo.insertSession({ session_id: 'force-test', workspace: 'ws', cwd: '/t', transcript_path: TRANSCRIPT_PATH, started_at: Date.now() });
-      ingestion.ingestSession('force-test');
+      await ingestion.ingestSession('force-test');
 
-      const result = ingestion.ingestBatch({ force: true });
+      const result = await ingestion.ingestBatch({ force: true });
       expect(result.ingested).toBe(1);
       expect(result.skipped).toBe(0);
 

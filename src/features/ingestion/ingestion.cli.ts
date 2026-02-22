@@ -10,7 +10,7 @@ export interface IngestCliOptions {
   json?: boolean;
 }
 
-export function ingestCli(service: IngestionService, options: IngestCliOptions): void {
+export async function ingestCli(service: IngestionService, options: IngestCliOptions): Promise<void> {
   const batchOptions: BatchOptions = {
     sessionId: options.session,
     force: options.force,
@@ -20,7 +20,7 @@ export function ingestCli(service: IngestionService, options: IngestCliOptions):
     batchOptions.sinceMs = parseDuration(options.since);
   }
 
-  const result = service.ingestBatch(batchOptions);
+  const result = await service.ingestBatch(batchOptions);
 
   if (options.json) {
     console.log(JSON.stringify({

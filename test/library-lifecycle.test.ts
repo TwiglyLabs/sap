@@ -15,7 +15,7 @@ describe('library lifecycle parity', () => {
     sap.close();
   });
 
-  it('full session lifecycle: start → tool-use → idle → attention → end', () => {
+  it('full session lifecycle: start → tool-use → idle → attention → end', async () => {
     const payload = {
       session_id: 'lifecycle-001',
       cwd: '/tmp/repo',
@@ -24,38 +24,38 @@ describe('library lifecycle parity', () => {
       hook_event_name: '',
     };
 
-    sap.recording.recordEvent('session-start', { ...payload, source: 'startup' as const });
+    await sap.recording.recordEvent('session-start', { ...payload, source: 'startup' as const });
     expect(sap.sessions.status().sessions[0].state).toBe('active');
 
-    sap.recording.recordEvent('tool-use', { ...payload, tool_name: 'Bash', tool_input: { command: 'npm test' } });
+    await sap.recording.recordEvent('tool-use', { ...payload, tool_name: 'Bash', tool_input: { command: 'npm test' } });
     const s1 = sap.sessions.status().sessions[0];
     expect(s1.state).toBe('active');
     expect(s1.last_tool).toBe('Bash');
     expect(s1.last_tool_detail).toBe('npm test');
 
-    sap.recording.recordEvent('turn-complete', payload);
+    await sap.recording.recordEvent('turn-complete', payload);
     expect(sap.sessions.status().sessions[0].state).toBe('idle');
 
-    sap.recording.recordEvent('user-prompt', { ...payload, prompt: 'now fix the CSS' });
+    await sap.recording.recordEvent('user-prompt', { ...payload, prompt: 'now fix the CSS' });
     expect(sap.sessions.status().sessions[0].state).toBe('active');
 
-    sap.recording.recordEvent('attention-permission', payload);
+    await sap.recording.recordEvent('attention-permission', payload);
     expect(sap.sessions.status().sessions[0].state).toBe('attention');
 
-    sap.recording.recordEvent('session-end', { ...payload, reason: 'user_exit' });
+    await sap.recording.recordEvent('session-end', { ...payload, reason: 'user_exit' });
     expect(sap.sessions.status().sessions.length).toBe(0);
   });
 
-  it('status returns only non-stopped sessions', () => {
-    sap.recording.recordEvent('session-start', {
+  it('status returns only non-stopped sessions', async () => {
+    await sap.recording.recordEvent('session-start', {
       session_id: 'active-one', cwd: '/tmp/a', transcript_path: '',
       permission_mode: 'default', hook_event_name: '', source: 'startup' as const,
     });
-    sap.recording.recordEvent('session-start', {
+    await sap.recording.recordEvent('session-start', {
       session_id: 'stopped-one', cwd: '/tmp/b', transcript_path: '',
       permission_mode: 'default', hook_event_name: '', source: 'startup' as const,
     });
-    sap.recording.recordEvent('session-end', {
+    await sap.recording.recordEvent('session-end', {
       session_id: 'stopped-one', cwd: '/tmp/b', transcript_path: '',
       permission_mode: 'default', hook_event_name: '', reason: 'done',
     });
@@ -65,12 +65,12 @@ describe('library lifecycle parity', () => {
     expect(status.sessions[0].session_id).toBe('active-one');
   });
 
-  it('statusGrouped groups by workspace', () => {
-    sap.recording.recordEvent('session-start', {
+  it('statusGrouped groups by workspace', async () => {
+    await sap.recording.recordEvent('session-start', {
       session_id: 's1', cwd: '/tmp/a', transcript_path: '',
       permission_mode: 'default', hook_event_name: '', source: 'startup' as const,
     });
-    sap.recording.recordEvent('session-start', {
+    await sap.recording.recordEvent('session-start', {
       session_id: 's2', cwd: '/tmp/a', transcript_path: '',
       permission_mode: 'default', hook_event_name: '', source: 'startup' as const,
     });

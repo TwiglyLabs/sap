@@ -77,11 +77,11 @@ describe('library e2e (built artifact)', () => {
     expect(typeof workspace.WorkspaceService).toBe('function');
   });
 
-  it('full workflow through built artifact', () => {
+  it('full workflow through built artifact', async () => {
     const sap = lib.createSap({ dbPath: tmpDb });
 
     // Start a session
-    sap.recording.recordEvent('session-start', {
+    await sap.recording.recordEvent('session-start', {
       session_id: 'e2e-001',
       cwd: '/tmp/e2e-repo',
       transcript_path: '',
@@ -96,7 +96,7 @@ describe('library e2e (built artifact)', () => {
     expect(status.sessions[0].session_id).toBe('e2e-001');
 
     // Tool use
-    sap.recording.recordEvent('tool-use', {
+    await sap.recording.recordEvent('tool-use', {
       session_id: 'e2e-001',
       cwd: '/tmp/e2e-repo',
       transcript_path: '',
@@ -119,7 +119,7 @@ describe('library e2e (built artifact)', () => {
     expect(bad.error).toBeDefined();
 
     // End session
-    sap.recording.recordEvent('session-end', {
+    await sap.recording.recordEvent('session-end', {
       session_id: 'e2e-001',
       cwd: '/tmp/e2e-repo',
       transcript_path: '',
@@ -152,7 +152,7 @@ describe('library e2e (built artifact)', () => {
     expect(existsSync(distPath + '.map')).toBe(true);
   });
 
-  it('ingestion + analytics through built artifact', () => {
+  it('ingestion + analytics through built artifact', async () => {
     const dbPath = `/tmp/sap-e2e-ingest-${process.pid}.db`;
     const transcriptPath = `/tmp/sap-e2e-transcript-${process.pid}.jsonl`;
 
@@ -169,13 +169,13 @@ describe('library e2e (built artifact)', () => {
       writeFileSync(transcriptPath, lines.map(l => JSON.stringify(l)).join('\n'));
 
       // Record session-start to create the session (uses workspace resolution)
-      sap.recording.recordEvent('session-start', {
+      await sap.recording.recordEvent('session-start', {
         session_id: 'e2e-ingest', cwd: '/tmp/e2e', transcript_path: transcriptPath,
         permission_mode: 'default', hook_event_name: 'session-start', source: 'startup',
       });
 
       // Ingest
-      const ingestResult = sap.ingestion.ingestSession('e2e-ingest');
+      const ingestResult = await sap.ingestion.ingestSession('e2e-ingest');
       expect(ingestResult.ok).toBe(true);
       if (!ingestResult.ok) return;
       expect(ingestResult.data.turns).toBe(1);

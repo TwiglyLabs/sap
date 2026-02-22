@@ -79,11 +79,11 @@ describe('AnalyticsRepositorySqlite + AnalyticsService', () => {
   });
 
   describe('summaryQuery', () => {
-    it('returns session count, turns, and duration', () => {
+    it('returns session count, turns, and duration', async () => {
       const t = tmpFile('summary-1');
       writeFileSync(t, makeTranscript('s1'));
       sessionRepo.insertSession({ session_id: 's1', workspace: 'ws', cwd: '/', transcript_path: t, started_at: 1000 });
-      ingestion.ingestSession('s1');
+      await ingestion.ingestSession('s1');
 
       const summary = analytics.summary({});
       expect(summary.sessions.total).toBe(1);
@@ -96,11 +96,11 @@ describe('AnalyticsRepositorySqlite + AnalyticsService', () => {
       expect(summary.period.since).toBeNull(); // no sinceMs filter
     });
 
-    it('returns token totals', () => {
+    it('returns token totals', async () => {
       const t = tmpFile('summary-tokens');
       writeFileSync(t, makeTranscript('s1'));
       sessionRepo.insertSession({ session_id: 's1', workspace: 'ws', cwd: '/', transcript_path: t, started_at: 1000 });
-      ingestion.ingestSession('s1');
+      await ingestion.ingestSession('s1');
 
       const summary = analytics.summary({});
       expect(summary.tokens.total_input).toBe(1000);
@@ -109,11 +109,11 @@ describe('AnalyticsRepositorySqlite + AnalyticsService', () => {
       expect(summary.tokens.total_cache_write).toBe(100);
     });
 
-    it('returns top tools by usage', () => {
+    it('returns top tools by usage', async () => {
       const t = tmpFile('summary-tools');
       writeFileSync(t, makeTranscript('s1'));
       sessionRepo.insertSession({ session_id: 's1', workspace: 'ws', cwd: '/', transcript_path: t, started_at: 1000 });
-      ingestion.ingestSession('s1');
+      await ingestion.ingestSession('s1');
 
       const summary = analytics.summary({});
       expect(summary.tools.total_calls).toBe(1);
@@ -121,26 +121,26 @@ describe('AnalyticsRepositorySqlite + AnalyticsService', () => {
       expect(summary.tools.top[0].tool).toBe('Read');
     });
 
-    it('returns workspace breakdown', () => {
+    it('returns workspace breakdown', async () => {
       const t = tmpFile('summary-ws');
       writeFileSync(t, makeTranscript('s1'));
       sessionRepo.insertSession({ session_id: 's1', workspace: 'repo:main', cwd: '/', transcript_path: t, started_at: 1000 });
-      ingestion.ingestSession('s1');
+      await ingestion.ingestSession('s1');
 
       const summary = analytics.summary({});
       expect(summary.sessions.by_workspace.length).toBeGreaterThan(0);
       expect(summary.sessions.by_workspace[0].workspace).toBe('repo:main');
     });
 
-    it('filters by workspace', () => {
+    it('filters by workspace', async () => {
       const t1 = tmpFile('ws-a');
       const t2 = tmpFile('ws-b');
       writeFileSync(t1, makeTranscript('sa'));
       writeFileSync(t2, makeTranscript('sb', { inputTokens: 2000 }));
       sessionRepo.insertSession({ session_id: 'sa', workspace: 'ws-a', cwd: '/a', transcript_path: t1, started_at: 1000 });
       sessionRepo.insertSession({ session_id: 'sb', workspace: 'ws-b', cwd: '/b', transcript_path: t2, started_at: 2000 });
-      ingestion.ingestSession('sa');
-      ingestion.ingestSession('sb');
+      await ingestion.ingestSession('sa');
+      await ingestion.ingestSession('sb');
 
       const summaryA = analytics.summary({ workspace: 'ws-a' });
       expect(summaryA.sessions.total).toBe(1);
@@ -152,11 +152,11 @@ describe('AnalyticsRepositorySqlite + AnalyticsService', () => {
   });
 
   describe('toolsQuery', () => {
-    it('returns per-tool breakdown with success rates', () => {
+    it('returns per-tool breakdown with success rates', async () => {
       const t = tmpFile('tools-basic');
       writeFileSync(t, makeTranscript('s1'));
       sessionRepo.insertSession({ session_id: 's1', workspace: 'ws', cwd: '/', transcript_path: t, started_at: 1000 });
-      ingestion.ingestSession('s1');
+      await ingestion.ingestSession('s1');
 
       const tools = analytics.tools({});
       expect(tools.tools.length).toBe(1);
@@ -165,7 +165,7 @@ describe('AnalyticsRepositorySqlite + AnalyticsService', () => {
       expect(tools.tools[0].success_rate).toBe(1);
     });
 
-    it('returns tool sequences', () => {
+    it('returns tool sequences', async () => {
       // Create a transcript with two tool uses in one turn
       const sessionId = 'seq-test';
       const transcript = [
@@ -189,18 +189,18 @@ describe('AnalyticsRepositorySqlite + AnalyticsService', () => {
       const t = tmpFile('tools-seq');
       writeFileSync(t, transcript);
       sessionRepo.insertSession({ session_id: sessionId, workspace: 'ws', cwd: '/', transcript_path: t, started_at: 1000 });
-      ingestion.ingestSession(sessionId);
+      await ingestion.ingestSession(sessionId);
 
       const tools = analytics.tools({});
       expect(tools.sequences.length).toBeGreaterThan(0);
       expect(tools.sequences[0].sequence).toEqual(['Read', 'Edit']);
     });
 
-    it('reports errors in tool breakdown', () => {
+    it('reports errors in tool breakdown', async () => {
       const t = tmpFile('tools-errors');
       writeFileSync(t, makeTranscript('s1', { toolName: 'Edit', errorTool: true }));
       sessionRepo.insertSession({ session_id: 's1', workspace: 'ws', cwd: '/', transcript_path: t, started_at: 1000 });
-      ingestion.ingestSession('s1');
+      await ingestion.ingestSession('s1');
 
       const tools = analytics.tools({});
       const editTool = tools.tools.find(t => t.tool === 'Edit');
@@ -211,11 +211,11 @@ describe('AnalyticsRepositorySqlite + AnalyticsService', () => {
   });
 
   describe('sessionsAnalyticsQuery', () => {
-    it('returns per-session metrics', () => {
+    it('returns per-session metrics', async () => {
       const t = tmpFile('sa-basic');
       writeFileSync(t, makeTranscript('s1'));
       sessionRepo.insertSession({ session_id: 's1', workspace: 'ws', cwd: '/', transcript_path: t, started_at: 1000 });
-      ingestion.ingestSession('s1');
+      await ingestion.ingestSession('s1');
 
       const result = analytics.sessionsAnalytics({}, 10);
       expect(result.sessions.length).toBe(1);
@@ -225,22 +225,22 @@ describe('AnalyticsRepositorySqlite + AnalyticsService', () => {
       expect(result.sessions[0].input_tokens).toBe(1000);
     });
 
-    it('detects commit outcome', () => {
+    it('detects commit outcome', async () => {
       const t = tmpFile('sa-commit');
       writeFileSync(t, makeCommitTranscript('commit-session'));
       sessionRepo.insertSession({ session_id: 'commit-session', workspace: 'ws', cwd: '/', transcript_path: t, started_at: 1000 });
-      ingestion.ingestSession('commit-session');
+      await ingestion.ingestSession('commit-session');
 
       const result = analytics.sessionsAnalytics({}, 10);
       expect(result.sessions[0].outcome.committed).toBe(true);
     });
 
-    it('respects limit parameter', () => {
+    it('respects limit parameter', async () => {
       for (let i = 0; i < 5; i++) {
         const t = tmpFile(`sa-limit-${i}`);
         writeFileSync(t, makeTranscript(`lim-${i}`));
         sessionRepo.insertSession({ session_id: `lim-${i}`, workspace: 'ws', cwd: '/', transcript_path: t, started_at: i * 1000 });
-        ingestion.ingestSession(`lim-${i}`);
+        await ingestion.ingestSession(`lim-${i}`);
       }
 
       const result = analytics.sessionsAnalytics({}, 2);
@@ -255,11 +255,11 @@ describe('AnalyticsRepositorySqlite + AnalyticsService', () => {
       expect(patterns.outlier_sessions).toEqual([]);
     });
 
-    it('detects edit retry anti-pattern', () => {
+    it('detects edit retry anti-pattern', async () => {
       const t = tmpFile('ap-edit');
       writeFileSync(t, makeTranscript('edit-fail', { toolName: 'Edit', errorTool: true }));
       sessionRepo.insertSession({ session_id: 'edit-fail', workspace: 'ws', cwd: '/', transcript_path: t, started_at: 1000 });
-      ingestion.ingestSession('edit-fail');
+      await ingestion.ingestSession('edit-fail');
 
       const patterns = analytics.patterns({});
       const editRetry = patterns.anti_patterns.find(p => p.pattern === 'edit-retry');
@@ -268,11 +268,11 @@ describe('AnalyticsRepositorySqlite + AnalyticsService', () => {
       expect(editRetry!.sessions_affected).toBe(1);
     });
 
-    it('detects bash error anti-pattern', () => {
+    it('detects bash error anti-pattern', async () => {
       const t = tmpFile('ap-bash');
       writeFileSync(t, makeTranscript('bash-fail', { toolName: 'Bash', errorTool: true }));
       sessionRepo.insertSession({ session_id: 'bash-fail', workspace: 'ws', cwd: '/', transcript_path: t, started_at: 1000 });
-      ingestion.ingestSession('bash-fail');
+      await ingestion.ingestSession('bash-fail');
 
       const patterns = analytics.patterns({});
       const bashError = patterns.anti_patterns.find(p => p.pattern === 'bash-error');
@@ -280,20 +280,20 @@ describe('AnalyticsRepositorySqlite + AnalyticsService', () => {
       expect(bashError!.frequency).toBeGreaterThan(0);
     });
 
-    it('identifies outlier sessions by token usage', () => {
+    it('identifies outlier sessions by token usage', async () => {
       // Create 5 normal sessions
       for (let i = 0; i < 5; i++) {
         const t = tmpFile(`normal-${i}`);
         writeFileSync(t, makeTranscript(`normal-${i}`, { inputTokens: 1000 }));
         sessionRepo.insertSession({ session_id: `normal-${i}`, workspace: 'ws', cwd: '/', transcript_path: t, started_at: i * 1000 });
-        ingestion.ingestSession(`normal-${i}`);
+        await ingestion.ingestSession(`normal-${i}`);
       }
 
       // Create 1 outlier
       const t = tmpFile('outlier');
       writeFileSync(t, makeTranscript('outlier', { inputTokens: 50000 }));
       sessionRepo.insertSession({ session_id: 'outlier', workspace: 'ws', cwd: '/', transcript_path: t, started_at: 10000 });
-      ingestion.ingestSession('outlier');
+      await ingestion.ingestSession('outlier');
 
       const patterns = analytics.patterns({});
       expect(patterns.outlier_sessions.length).toBeGreaterThan(0);

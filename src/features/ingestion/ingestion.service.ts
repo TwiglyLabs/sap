@@ -1,4 +1,5 @@
-import { readFileSync, existsSync } from 'fs';
+import * as fs from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { parseTranscriptLine, groupIntoTurns } from './transcript.ts';
 import { extractToolDetail } from './tool-detail.ts';
 import type { IngestionRepository } from './ingestion.repository.ts';
@@ -6,12 +7,14 @@ import type { IngestResult, IngestOptions, BatchResult, BatchOptions } from './i
 import type { Result } from '../../core/types.ts';
 import { ok, err } from '../../core/utils.ts';
 
+const MAX_TRANSCRIPT_BYTES = 50 * 1024 * 1024; // 50MB
+
 /** Parses JSONL transcript files into structured turn and tool call records. */
 export class IngestionService {
   constructor(private repo: IngestionRepository) {}
 
   /** Ingest a single session's transcript. Skips already-ingested unless force is set. */
-  ingestSession(sessionId: string, options: IngestOptions = {}): Result<IngestResult> {
+  async ingestSession(sessionId: string, options: IngestOptions = {}): Promise<Result<IngestResult>> {
     const session = this.repo.getSession(sessionId);
     if (!session) {
       return err('Session not found');
@@ -25,11 +28,18 @@ export class IngestionService {
       return ok({ sessionId, turns: 0, toolCalls: 0, skipped: true });
     }
 
-    if (!existsSync(session.transcript_path)) {
+    try {
+      await fs.access(session.transcript_path, constants.F_OK);
+    } catch {
       return err(`Transcript file not found: ${session.transcript_path}`);
     }
 
-    const raw = readFileSync(session.transcript_path, 'utf-8');
+    const { size } = await fs.stat(session.transcript_path);
+    if (size > MAX_TRANSCRIPT_BYTES) {
+      return err(`Transcript too large: ${(size / 1024 / 1024).toFixed(1)}MB (limit: 50MB)`);
+    }
+
+    const raw = await fs.readFile(session.transcript_path, 'utf-8');
     const lines = raw.split('\n').filter(l => l.trim());
     const parsed = lines.map(l => parseTranscriptLine(l)).filter(l => l !== null);
     const turnData = groupIntoTurns(parsed);
@@ -91,7 +101,7 @@ export class IngestionService {
   }
 
   /** Ingest multiple sessions. Filters by sessionId or sinceMs. */
-  ingestBatch(options: BatchOptions): BatchResult {
+  async ingestBatch(options: BatchOptions): Promise<BatchResult> {
     let sessions: { session_id: string; transcript_path: string | null; started_at: number; ingested_at: number | null }[];
 
     if (options.sessionId) {
@@ -104,7 +114,7 @@ export class IngestionService {
     const result: BatchResult = { ingested: 0, skipped: 0, errors: [], results: [] };
 
     for (const session of sessions) {
-      const r = this.ingestSession(session.session_id, { force: options.force });
+      const r = await this.ingestSession(session.session_id, { force: options.force });
       if (r.ok) {
         result.results.push(r.data);
         if (r.data.skipped) {

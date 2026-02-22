@@ -9,7 +9,7 @@ const VALID_EVENTS: EventType[] = [
   'user-prompt', 'tool-use',
 ];
 
-export function recordCli(service: RecordingService, eventType: string): void {
+export async function recordCli(service: RecordingService, eventType: string): Promise<void> {
   if (!VALID_EVENTS.includes(eventType as EventType)) {
     process.stderr.write(`Unknown event type: ${eventType}\n`);
     process.exitCode = 1;
@@ -27,7 +27,7 @@ export function recordCli(service: RecordingService, eventType: string): void {
 
   try {
     const payload = parsePayload(stdin);
-    service.recordEvent(eventType as EventType, payload);
+    await service.recordEvent(eventType as EventType, payload);
   } catch (err) {
     process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
     process.exitCode = 2;

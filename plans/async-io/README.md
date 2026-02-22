@@ -1,6 +1,6 @@
 ---
 title: Async I/O for Electron Integration
-status: not_started
+status: done
 description: >-
   Replace synchronous git exec and file I/O in SAP with async equivalents to
   avoid blocking Electron's main thread.
@@ -9,6 +9,7 @@ tags:
   - cross-repo
 type: feature
 not_started_at: '2026-02-22T22:57:02.617Z'
+completed_at: '2026-02-22T23:07:45.267Z'
 ---
 
 ## Problem

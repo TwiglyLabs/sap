@@ -37,10 +37,10 @@ program
     '  echo \'{"session_id":"abc","cwd":"/repo"}\' | sap record --event session-start'
   )
   .requiredOption('--event <type>', 'Event type: session-start, session-end, turn-complete, attention-permission, attention-idle, user-prompt, tool-use')
-  .action((options) => {
+  .action(async (options) => {
     const sap = createSap();
     try {
-      recordCli(sap.recording, options.event as string);
+      await recordCli(sap.recording, options.event as string);
     } finally {
       sap.close();
     }
@@ -158,9 +158,9 @@ program
   .option('--since <duration>', 'Only ingest sessions from this period (e.g. "7d", "24h")')
   .option('--force', 'Re-ingest already-processed sessions')
   .option('--json', 'Output as JSON')
-  .action((options) => {
+  .action(async (options) => {
     const sap = createSap();
-    ingestCli(sap.ingestion, options);
+    await ingestCli(sap.ingestion, options);
     sap.close();
   });
 
