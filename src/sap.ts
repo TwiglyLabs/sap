@@ -9,11 +9,15 @@ import { IngestionRepositorySqlite } from './features/ingestion/sqlite/ingestion
 import { IngestionService } from './features/ingestion/ingestion.service.ts';
 import { AnalyticsRepositorySqlite } from './features/analytics/sqlite/analytics.repository.sqlite.ts';
 import { AnalyticsService } from './features/analytics/analytics.service.ts';
+import { noopLogger } from '@twiglylabs/log';
+import type { Logger } from '@twiglylabs/log';
 
 /** Options for creating a SAP instance. */
 export interface SapOptions {
   /** SQLite database path. Defaults to ~/.sap/sap.db or SAP_DB_PATH env var. Use ':memory:' for tests. */
   dbPath?: string;
+  /** Optional logger. When omitted, a no-op logger is used (zero overhead). */
+  logger?: Logger;
 }
 
 /** SAP instance with all services wired to a shared SQLite database. */
@@ -34,17 +38,23 @@ export interface Sap {
 
 /** Create a SAP instance. Opens the database and wires all services. */
 export function createSap(options?: SapOptions): Sap {
-  const db = openDb(options?.dbPath ?? DEFAULT_DB_PATH);
+  const logger = options?.logger ?? noopLogger;
+  const log = logger.child('sap');
+
+  const dbPath = options?.dbPath ?? DEFAULT_DB_PATH;
+  const db = openDb(dbPath);
+  log.debug('database opened', { dbPath });
+
   const sessionRepo = new SessionRepositorySqlite(db);
-  const sessionService = new SessionService(sessionRepo);
+  const sessionService = new SessionService(sessionRepo, logger);
   const workspaceRepo = new WorkspaceRepositorySqlite(db);
   const workspaceService = new WorkspaceService(workspaceRepo);
   const recordingRepo = new RecordingRepositorySqlite(db);
-  const recordingService = new RecordingService(recordingRepo, workspaceService);
+  const recordingService = new RecordingService(recordingRepo, workspaceService, logger);
   const ingestionRepo = new IngestionRepositorySqlite(db);
-  const ingestionService = new IngestionService(ingestionRepo);
+  const ingestionService = new IngestionService(ingestionRepo, logger);
   const analyticsRepo = new AnalyticsRepositorySqlite(db);
-  const analyticsService = new AnalyticsService(analyticsRepo);
+  const analyticsService = new AnalyticsService(analyticsRepo, logger);
 
   return {
     sessions: sessionService,
@@ -52,6 +62,9 @@ export function createSap(options?: SapOptions): Sap {
     recording: recordingService,
     ingestion: ingestionService,
     analytics: analyticsService,
-    close: () => db.close(),
+    close: () => {
+      db.close();
+      log.debug('database closed', { dbPath });
+    },
   };
 }

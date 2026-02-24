@@ -2,13 +2,20 @@ import type { EventType, HookPayload, SessionStartSource, SessionState } from '.
 import { extractToolDetail } from '../ingestion/tool-detail.ts';
 import type { RecordingRepository } from './recording.repository.ts';
 import type { WorkspaceService } from '../workspace/workspace.service.ts';
+import { noopLogger } from '@twiglylabs/log';
+import type { Logger } from '@twiglylabs/log';
 
 /** Records Claude Code hook events, managing session state transitions and event storage. */
 export class RecordingService {
+  private log: Logger;
+
   constructor(
     private repo: RecordingRepository,
     private workspaceService: WorkspaceService,
-  ) {}
+    logger: Logger = noopLogger,
+  ) {
+    this.log = logger.child('sap:recording');
+  }
 
   /** Process a hook event: create/update session state and store the event. */
   async recordEvent(eventType: EventType, data: HookPayload): Promise<void> {
@@ -18,6 +25,10 @@ export class RecordingService {
       const workspace = await this.workspaceService.resolveWorkspace(data.cwd, true);
       this.repo.transaction(() => {
         this.handleSessionStart(data, now, workspace);
+      });
+      this.log.info('session-start recorded', {
+        sessionId: data.session_id,
+        source: data.source ?? 'startup',
       });
       return;
     }
@@ -37,6 +48,18 @@ export class RecordingService {
           return this.handleToolUse(data, now);
       }
     });
+
+    if (eventType === 'session-end') {
+      this.log.info('session-end recorded', {
+        sessionId: data.session_id,
+        reason: data.reason,
+      });
+    } else {
+      this.log.debug('event recorded', {
+        sessionId: data.session_id,
+        eventType,
+      });
+    }
   }
 
   private handleSessionStart(data: HookPayload, now: number, workspace: string): void {
@@ -137,6 +160,11 @@ export class RecordingService {
       event_type: 'tool-use',
       data: JSON.stringify({ tool_name: toolName, tool_detail: toolDetail }),
       created_at: now,
+    });
+
+    this.log.debug('tool-use recorded', {
+      sessionId: data.session_id,
+      toolName,
     });
   }
 }

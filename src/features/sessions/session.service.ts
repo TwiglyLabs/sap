@@ -2,10 +2,19 @@ import type { Session } from '../../core/types.ts';
 import { STALE_THRESHOLD_MS } from '../../core/config.ts';
 import type { SessionRepository } from './session.repository.ts';
 import type { StatusResult, GroupedStatusResult, SessionsQueryOptions } from './session.types.ts';
+import { noopLogger } from '@twiglylabs/log';
+import type { Logger } from '@twiglylabs/log';
 
 /** Session lifecycle management: status queries, history, garbage collection, and stale sweep. */
 export class SessionService {
-  constructor(private repo: SessionRepository) {}
+  private log: Logger;
+
+  constructor(
+    private repo: SessionRepository,
+    logger: Logger = noopLogger,
+  ) {
+    this.log = logger.child('sap:sessions');
+  }
 
   /** Get all non-stopped sessions with computed staleness. */
   status(workspace?: string): StatusResult {
@@ -47,11 +56,15 @@ export class SessionService {
 
   /** Delete sessions older than the given threshold. Returns count deleted. */
   gc(olderThanMs: number): number {
-    return this.repo.deleteStaleSessions(olderThanMs);
+    const deleted = this.repo.deleteStaleSessions(olderThanMs);
+    this.log.debug('gc complete', { olderThanMs, deleted });
+    return deleted;
   }
 
   /** Mark stale sessions as stopped. Returns count swept. */
   sweep(thresholdMs: number): number {
-    return this.repo.markStaleSessions(thresholdMs);
+    const swept = this.repo.markStaleSessions(thresholdMs);
+    this.log.debug('sweep complete', { thresholdMs, swept });
+    return swept;
   }
 }

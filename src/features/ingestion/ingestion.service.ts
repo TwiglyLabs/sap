@@ -6,12 +6,21 @@ import type { IngestionRepository } from './ingestion.repository.ts';
 import type { IngestResult, IngestOptions, BatchResult, BatchOptions } from './ingestion.types.ts';
 import type { Result } from '../../core/types.ts';
 import { ok, err } from '../../core/utils.ts';
+import { noopLogger } from '@twiglylabs/log';
+import type { Logger } from '@twiglylabs/log';
 
 const MAX_TRANSCRIPT_BYTES = 50 * 1024 * 1024; // 50MB
 
 /** Parses JSONL transcript files into structured turn and tool call records. */
 export class IngestionService {
-  constructor(private repo: IngestionRepository) {}
+  private log: Logger;
+
+  constructor(
+    private repo: IngestionRepository,
+    logger: Logger = noopLogger,
+  ) {
+    this.log = logger.child('sap:ingestion');
+  }
 
   /** Ingest a single session's transcript. Skips already-ingested unless force is set. */
   async ingestSession(sessionId: string, options: IngestOptions = {}): Promise<Result<IngestResult>> {
@@ -38,6 +47,8 @@ export class IngestionService {
     if (size > MAX_TRANSCRIPT_BYTES) {
       return err(`Transcript too large: ${(size / 1024 / 1024).toFixed(1)}MB (limit: 50MB)`);
     }
+
+    this.log.debug('ingestion started', { sessionId, transcriptPath: session.transcript_path });
 
     const raw = await fs.readFile(session.transcript_path, 'utf-8');
     const lines = raw.split('\n').filter(l => l.trim());
@@ -97,6 +108,12 @@ export class IngestionService {
       this.repo.markSessionIngested(sessionId);
     });
 
+    this.log.debug('ingestion complete', {
+      sessionId,
+      turns: turnData.length,
+      toolCalls: totalToolCalls,
+    });
+
     return ok({ sessionId, turns: turnData.length, toolCalls: totalToolCalls, skipped: false });
   }
 
@@ -126,6 +143,12 @@ export class IngestionService {
         result.errors.push({ session_id: session.session_id, error: r.error });
       }
     }
+
+    this.log.debug('batch ingestion complete', {
+      ingested: result.ingested,
+      skipped: result.skipped,
+      errors: result.errors.length,
+    });
 
     return result;
   }
