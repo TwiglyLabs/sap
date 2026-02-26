@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "gates": [
+    { "name": "typecheck", "command": "npm run lint" },
+    { "name": "unit-tests", "command": "npm test" },
+    { "name": "build", "command": "npm run build" }
+  ]
+}

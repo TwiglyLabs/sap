@@ -1,0 +1,5 @@
+workspace:
+  repos:
+    - path: ../log
+  hooks:
+    postCreate: .grove/post-create.sh
