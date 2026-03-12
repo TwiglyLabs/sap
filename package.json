@@ -41,7 +41,6 @@
   "scripts": {
     "build": "node build.mjs",
     "build:prod": "node build.mjs --minify",
-    "publish:local": "npm run build && npm publish --registry http://localhost:4873",
     "test": "vitest run --reporter=verbose --reporter=json --outputFile=.bark/.vitest-raw.json; bark convert vitest .bark/.vitest-raw.json --gate unit-tests",
     "test:e2e": "node build.mjs && npx vitest run test/library-e2e.test.ts",
     "dev": "vitest",
